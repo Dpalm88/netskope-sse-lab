@@ -1,0 +1,691 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Netskope Interview Prep</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap');
+
+  :root {
+    --bg: #0a0e1a;
+    --surface: #111827;
+    --surface2: #1a2235;
+    --border: #1e2d45;
+    --accent: #00d4ff;
+    --green: #10b981;
+    --red: #ef4444;
+    --amber: #f59e0b;
+    --purple: #7c3aed;
+    --text: #e2e8f0;
+    --muted: #64748b;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,212,255,0.012) 2px, rgba(0,212,255,0.012) 4px);
+    pointer-events: none; z-index: 0;
+  }
+
+  header {
+    padding: 20px 32px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+    position: relative; z-index: 1;
+  }
+
+  .logo { font-size: 10px; font-family: 'JetBrains Mono', monospace; color: var(--accent); letter-spacing: 0.2em; }
+  h1 { font-size: 20px; font-weight: 800; }
+  h1 span { color: var(--accent); }
+
+  /* Category tabs */
+  .cats {
+    display: flex; gap: 8px; padding: 16px 32px;
+    border-bottom: 1px solid var(--border);
+    flex-wrap: wrap; position: relative; z-index: 1;
+  }
+
+  .cat-btn {
+    font-family: 'Syne', sans-serif; font-size: 11px; font-weight: 600;
+    letter-spacing: 0.06em; text-transform: uppercase;
+    padding: 6px 14px; border-radius: 20px; border: 1px solid var(--border);
+    background: transparent; color: var(--muted); cursor: pointer;
+    transition: all 0.2s;
+  }
+  .cat-btn:hover { border-color: var(--accent); color: var(--text); }
+  .cat-btn.active { background: var(--accent); border-color: var(--accent); color: var(--bg); }
+
+  /* Progress */
+  .progress-bar-wrap {
+    padding: 12px 32px 0;
+    position: relative; z-index: 1;
+  }
+  .progress-info {
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 11px; font-family: 'JetBrains Mono', monospace;
+    color: var(--muted); margin-bottom: 6px;
+  }
+  .progress-track {
+    height: 3px; background: var(--border); border-radius: 2px;
+  }
+  .progress-fill {
+    height: 100%; background: var(--accent); border-radius: 2px;
+    transition: width 0.4s ease;
+  }
+
+  /* Score dots */
+  .score-dots {
+    display: flex; gap: 4px; padding: 10px 32px;
+    flex-wrap: wrap; position: relative; z-index: 1;
+    min-height: 28px;
+  }
+  .dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--border);
+    transition: background 0.3s;
+  }
+  .dot.correct { background: var(--green); }
+  .dot.wrong { background: var(--red); }
+  .dot.current { background: var(--accent); box-shadow: 0 0 6px var(--accent); }
+
+  /* Main card area */
+  main {
+    flex: 1; display: flex; flex-direction: column;
+    align-items: center; padding: 24px 32px 32px;
+    position: relative; z-index: 1;
+  }
+
+  /* Flashcard */
+  .card-scene {
+    width: 100%; max-width: 680px;
+    perspective: 1200px;
+    margin-bottom: 24px;
+  }
+
+  .card {
+    width: 100%; min-height: 260px;
+    position: relative;
+    transform-style: preserve-3d;
+    transition: transform 0.55s cubic-bezier(0.4, 0, 0.2, 1);
+    cursor: pointer;
+  }
+
+  .card.flipped { transform: rotateY(180deg); }
+
+  .card-face {
+    position: absolute; inset: 0;
+    backface-visibility: hidden;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 32px;
+    display: flex; flex-direction: column;
+    min-height: 260px;
+  }
+
+  .card-face.back {
+    transform: rotateY(180deg);
+    border-color: var(--accent);
+    background: var(--surface2);
+  }
+
+  .card-meta {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 20px;
+  }
+
+  .card-cat {
+    font-size: 10px; font-family: 'JetBrains Mono', monospace;
+    letter-spacing: 0.12em; text-transform: uppercase;
+    padding: 3px 10px; border-radius: 10px;
+  }
+
+  .card-difficulty {
+    font-size: 10px; font-family: 'JetBrains Mono', monospace;
+    color: var(--muted);
+  }
+
+  .card-q {
+    font-size: 18px; font-weight: 700; line-height: 1.4;
+    flex: 1; display: flex; align-items: center;
+  }
+
+  .card-hint {
+    font-size: 11px; font-family: 'JetBrains Mono', monospace;
+    color: var(--muted); margin-top: 16px; text-align: center;
+  }
+
+  .card-a {
+    font-size: 14px; line-height: 1.7; color: var(--text);
+    flex: 1;
+  }
+
+  .card-a strong { color: var(--accent); font-weight: 600; }
+  .card-a .key { color: var(--amber); }
+  .card-a .good { color: var(--green); }
+  .card-a .bad { color: var(--red); }
+
+  .card-tags {
+    display: flex; flex-wrap: wrap; gap: 6px; margin-top: 16px;
+  }
+
+  .card-tag {
+    font-size: 10px; font-family: 'JetBrains Mono', monospace;
+    padding: 2px 8px; border-radius: 4px; border: 1px solid;
+  }
+
+  /* Action buttons */
+  .actions {
+    display: flex; gap: 12px; width: 100%; max-width: 680px;
+    justify-content: center; flex-wrap: wrap;
+  }
+
+  .btn {
+    font-family: 'Syne', sans-serif; font-size: 12px; font-weight: 700;
+    letter-spacing: 0.06em; text-transform: uppercase;
+    padding: 11px 28px; border-radius: 8px; border: 1px solid;
+    cursor: pointer; transition: all 0.15s;
+  }
+
+  .btn:hover { transform: translateY(-1px); }
+  .btn:active { transform: translateY(0); }
+
+  .btn-flip {
+    background: var(--accent); color: var(--bg); border-color: var(--accent);
+  }
+
+  .btn-correct {
+    background: rgba(16,185,129,0.12); color: var(--green);
+    border-color: rgba(16,185,129,0.3);
+  }
+  .btn-correct:hover { background: rgba(16,185,129,0.2); }
+
+  .btn-wrong {
+    background: rgba(239,68,68,0.1); color: var(--red);
+    border-color: rgba(239,68,68,0.3);
+  }
+  .btn-wrong:hover { background: rgba(239,68,68,0.18); }
+
+  .btn-skip {
+    background: transparent; color: var(--muted);
+    border-color: var(--border);
+  }
+  .btn-skip:hover { color: var(--text); border-color: var(--muted); }
+
+  .answer-btns { display: none; gap: 12px; }
+  .answer-btns.show { display: flex; }
+
+  /* Results */
+  .results {
+    display: none; flex-direction: column; align-items: center;
+    width: 100%; max-width: 680px; gap: 20px;
+  }
+
+  .results.show { display: flex; }
+
+  .result-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 16px; padding: 32px; width: 100%; text-align: center;
+  }
+
+  .result-score {
+    font-size: 56px; font-weight: 800; letter-spacing: -0.03em;
+    line-height: 1;
+  }
+
+  .result-label {
+    font-size: 12px; font-family: 'JetBrains Mono', monospace;
+    color: var(--muted); letter-spacing: 0.1em; text-transform: uppercase;
+    margin-top: 8px;
+  }
+
+  .result-breakdown {
+    display: flex; gap: 24px; justify-content: center; margin-top: 20px;
+  }
+
+  .rb-item { text-align: center; }
+  .rb-num { font-size: 24px; font-weight: 800; }
+  .rb-lbl { font-size: 10px; font-family: 'JetBrains Mono', monospace; color: var(--muted); }
+
+  .btn-restart {
+    background: var(--accent); color: var(--bg);
+    border-color: var(--accent); font-size: 13px; padding: 14px 40px;
+  }
+
+  /* Interview tip */
+  .tip-card {
+    width: 100%; max-width: 680px;
+    background: rgba(0,212,255,0.04);
+    border: 1px solid rgba(0,212,255,0.15);
+    border-radius: 10px; padding: 14px 18px;
+    font-size: 12px; line-height: 1.6; color: var(--muted);
+    margin-top: 16px;
+  }
+  .tip-card strong { color: var(--accent); }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <div class="logo">netskope-sse-lab / interview prep</div>
+    <h1>Flash<span>cards</span></h1>
+  </div>
+  <div id="session-score" style="font-size:13px;font-family:'JetBrains Mono',monospace;color:var(--muted)"></div>
+</header>
+
+<div class="cats" id="cats"></div>
+
+<div class="progress-bar-wrap">
+  <div class="progress-info">
+    <span id="prog-label">Card 1 of 0</span>
+    <span id="prog-pct">0%</span>
+  </div>
+  <div class="progress-track"><div class="progress-fill" id="prog-fill" style="width:0%"></div></div>
+</div>
+
+<div class="score-dots" id="score-dots"></div>
+
+<main>
+  <div class="card-scene" id="card-scene">
+    <div class="card" id="card" onclick="flipCard()">
+      <div class="card-face front">
+        <div class="card-meta">
+          <span class="card-cat" id="card-cat-f"></span>
+          <span class="card-difficulty" id="card-diff"></span>
+        </div>
+        <div class="card-q" id="card-q"></div>
+        <div class="card-hint">click to reveal answer</div>
+      </div>
+      <div class="card-face back">
+        <div class="card-meta">
+          <span class="card-cat" id="card-cat-b"></span>
+          <span style="font-size:11px;font-family:'JetBrains Mono',monospace;color:var(--muted)">answer</span>
+        </div>
+        <div class="card-a" id="card-a"></div>
+        <div class="card-tags" id="card-tags"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="actions">
+    <button class="btn btn-flip" onclick="flipCard()" id="flip-btn">Reveal Answer</button>
+    <div class="answer-btns" id="answer-btns">
+      <button class="btn btn-correct" onclick="markCard(true)">Got it</button>
+      <button class="btn btn-wrong" onclick="markCard(false)">Missed it</button>
+      <button class="btn btn-skip" onclick="nextCard()">Skip</button>
+    </div>
+  </div>
+
+  <div class="tip-card" id="tip-card" style="display:none"></div>
+
+  <div class="results" id="results">
+    <div class="result-card">
+      <div class="result-score" id="res-pct"></div>
+      <div class="result-label">score</div>
+      <div class="result-breakdown">
+        <div class="rb-item"><div class="rb-num" style="color:var(--green)" id="res-correct"></div><div class="rb-lbl">correct</div></div>
+        <div class="rb-item"><div class="rb-num" style="color:var(--red)" id="res-wrong"></div><div class="rb-lbl">missed</div></div>
+        <div class="rb-item"><div class="rb-num" id="res-total"></div><div class="rb-lbl">total</div></div>
+      </div>
+    </div>
+    <button class="btn btn-restart" onclick="restartDeck()">Restart Deck</button>
+  </div>
+</main>
+
+<script>
+const CARDS = [
+  // === PLATFORM FUNDAMENTALS ===
+  {
+    cat: 'Platform', diff: 'foundational',
+    q: 'What is SSE and how does it differ from SASE?',
+    a: '<strong>SSE (Security Service Edge)</strong> is the security-only portion of SASE — it includes CASB, SWG, ZTNA, DLP, and threat protection delivered from the cloud.<br><br><strong>SASE</strong> adds SD-WAN networking on top of SSE. So: <span class="good">SASE = SSE + SD-WAN</span>. Netskope sells both, but many customers start with SSE and add SD-WAN later.',
+    tags: ['SSE','SASE','SD-WAN'],
+    tip: 'Interviewers love this distinction. Lead with "SSE is the security stack, SASE converges security and networking into one platform."'
+  },
+  {
+    cat: 'Platform', diff: 'foundational',
+    q: 'What is the Netskope Zero Trust Engine?',
+    a: 'The <strong>Zero Trust Engine</strong> is the policy brain at the center of the Netskope One platform. It evaluates every session using full context: <span class="key">user identity, device posture, app + instance, activity type, data content, threat signals, location</span>.<br><br>It enforces continuous adaptive trust — not just at login, but for every individual request. This replaces the old model of "authenticated = trusted."',
+    tags: ['Zero Trust','Policy','Context-aware'],
+    tip: '"Continuous adaptive trust" is the phrase Netskope uses. Drop it naturally.'
+  },
+  {
+    cat: 'Platform', diff: 'foundational',
+    q: 'What is the NewEdge network?',
+    a: '<strong>NewEdge</strong> is Netskope\'s own private security cloud — they own and operate it themselves rather than leasing capacity from AWS/Azure like some competitors. It has <span class="key">75+ global PoPs</span> (Points of Presence), each running full compute with the complete SASE stack.<br><br>Key differentiator: because Netskope controls the infrastructure, they can optimize latency end-to-end and guarantee SLAs that shared-cloud vendors can\'t.',
+    tags: ['NewEdge','Infrastructure','PoP'],
+    tip: 'Customers ask "where is my traffic going?" — knowing NewEdge is a private cloud, not AWS, matters for FedRAMP conversations.'
+  },
+  {
+    cat: 'Platform', diff: 'intermediate',
+    q: 'What are the three traffic steering methods in Netskope?',
+    a: '<strong>1. Netskope Client (agent)</strong> — lightweight agent on managed devices, transparent to the user, most full-featured.<br><br><strong>2. PAC file (explicit proxy)</strong> — browser sends traffic to Netskope proxy, no agent needed, common for BYOD or unmanaged devices.<br><br><strong>3. IPSec/GRE tunnel</strong> — site or branch office level, steers all egress traffic, used when you can\'t install agents on every device (servers, printers, etc.).',
+    tags: ['Client agent','PAC file','IPSec','GRE','Steering'],
+    tip: 'Support cases often start here — "which steering method is the customer using?" determines what you can and can\'t inspect.'
+  },
+  {
+    cat: 'Platform', diff: 'intermediate',
+    q: 'What is "single-pass inspection" and why does it matter?',
+    a: 'Traditional proxies run <span class="bad">serial inspection</span>: URL filter → antivirus → DLP → ... each adding latency.<br><br>Netskope does <strong>single-pass inspection</strong>: URL categorization, app detection, DLP, and threat detection all happen <span class="good">simultaneously in one pass</span>. This dramatically reduces latency while providing the same (or better) coverage.<br><br>It\'s a core architectural differentiator Netskope markets heavily.',
+    tags: ['Single-pass','Architecture','Latency'],
+    tip: 'Great answer to "what makes Netskope different from legacy web proxies?"'
+  },
+
+  // === CASB ===
+  {
+    cat: 'CASB', diff: 'foundational',
+    q: 'What is CASB and what are the two inspection modes?',
+    a: '<strong>CASB (Cloud Access Security Broker)</strong> sits between users and cloud apps to enforce security policies.<br><br><strong>Inline mode</strong>: traffic flows through Netskope in real time — can block, alert, coach, quarantine. Requires client agent or proxy.<br><br><strong>API mode</strong>: out-of-band connection to a SaaS app via API — scans <span class="key">data at rest</span> (files already in SharePoint, Dropbox, etc.). No traffic steering needed, but can\'t block in real time.',
+    tags: ['CASB','Inline','API mode','SaaS'],
+    tip: 'Classic interview Q. "Inline = real-time enforcement, API = data at rest scanning." Know both cold.'
+  },
+  {
+    cat: 'CASB', diff: 'intermediate',
+    q: 'What is "instance awareness" and why is it important?',
+    a: '<strong>Instance awareness</strong> means Netskope can distinguish between a <span class="good">corporate instance</span> and a <span class="bad">personal instance</span> of the same app — e.g., block uploads to personal Google Drive while allowing corporate Google Drive.<br><br>This solves a real problem: both are on drive.google.com, but one is sanctioned and one isn\'t. Netskope inspects headers and auth tokens to tell them apart.<br><br>It\'s one of the most commonly cited CASB capabilities in customer conversations.',
+    tags: ['Instance awareness','Shadow IT','SaaS'],
+    tip: 'If they ask "how does Netskope prevent data leakage to personal apps?" — instance awareness is the answer.'
+  },
+  {
+    cat: 'CASB', diff: 'intermediate',
+    q: 'What is the Cloud Confidence Index (CCI)?',
+    a: 'The <strong>CCI</strong> is Netskope\'s risk score (0–100) assigned to every cloud app based on criteria like <span class="key">data encryption, certifications (SOC2, ISO27001), terms of service, breach history, admin controls</span>.<br><br>Higher score = more trustworthy. Used in policy ("block all apps with CCI &lt; 40") and in shadow IT discovery reports.<br><br>Netskope has scored 50,000+ apps in their database.',
+    tags: ['CCI','Shadow IT','Risk score','App discovery'],
+    tip: '"How does Netskope help with shadow IT?" → CCI scoring + app discovery via the client agent.'
+  },
+
+  // === SWG ===
+  {
+    cat: 'SWG', diff: 'foundational',
+    q: 'What does a Next-Gen Secure Web Gateway do differently than a traditional web proxy?',
+    a: 'Traditional SWG: URL filtering + basic AV. Bolt-on DLP is separate, serial, slow.<br><br><strong>Next-Gen SWG</strong> adds: <span class="key">deep cloud app visibility, inline DLP, threat protection (malware/phishing/C2), Remote Browser Isolation (RBI), user coaching, full SSL inspection with single-pass architecture</span>.<br><br>Also: traditional proxies are on-prem boxes. Netskope SWG is cloud-delivered from NewEdge, so it covers remote users natively.',
+    tags: ['SWG','SSL inspection','RBI','Threat protection'],
+    tip: 'Frame it as: "old proxy = URL filter + AV box. Next-gen SWG = full inline security stack in the cloud."'
+  },
+  {
+    cat: 'SWG', diff: 'intermediate',
+    q: 'How does SSL inspection work and what are the common failure points?',
+    a: 'Netskope performs a <strong>TLS man-in-the-middle</strong>: terminates the client\'s TLS connection, inspects plaintext, re-encrypts toward destination. Requires a <span class="key">Netskope CA cert trusted on the device</span>.<br><br>Common failure points:<br>• <span class="bad">Certificate pinning</span> — apps that pin their cert (some banking apps, Zoom, etc.) break under inspection → need bypass rules<br>• <span class="bad">CA cert not deployed</span> — browser shows SSL errors<br>• <span class="bad">Bypass list misconfiguration</span> — too broad = blind spots, too narrow = breakage<br>• <span class="bad">TLS 1.3 with ECH</span> — encrypted SNI makes categorization harder',
+    tags: ['SSL inspection','TLS','Certificate','Bypass'],
+    tip: 'Support role bread-and-butter. "User can\'t reach their bank site" = probably needs a bypass rule.'
+  },
+  {
+    cat: 'SWG', diff: 'intermediate',
+    q: 'What is Remote Browser Isolation (RBI) and when is it used?',
+    a: '<strong>RBI</strong> runs the browser session in a remote cloud container instead of on the user\'s device. The user sees a pixel-streamed rendering — no actual web code executes locally.<br><br>Used for: <span class="key">risky/uncategorized sites, contractor access to sensitive apps, threat-prone categories</span>. If a site contains malware, it executes in the isolated container, not on the endpoint.<br><br>Can be applied as a policy action in Netskope: instead of block or allow, use "isolate."',
+    tags: ['RBI','Isolation','Threat protection'],
+    tip: 'RBI is the "isolate" policy action. Good answer when asked about zero-day protection or high-risk browsing.'
+  },
+
+  // === ZTNA ===
+  {
+    cat: 'ZTNA', diff: 'foundational',
+    q: 'How does Netskope ZTNA (Private Access) differ from a traditional VPN?',
+    a: '<strong>VPN</strong>: grants <span class="bad">network-level access</span> to a segment. Once in, lateral movement is possible. Hard to apply per-app policies. No inline inspection of traffic.<br><br><strong>Netskope ZTNA / Private Access</strong>: grants <span class="good">app-level access only</span> to specific defined private apps. No network access — user can\'t pivot to other systems. Full Netskope inspection applies (DLP, threat). Works identically for on-prem and cloud-hosted apps.<br><br>Key component: the <strong>Publisher</strong> — a connector deployed inside the network that brokers access.',
+    tags: ['ZTNA','VPN','Private Access','Publisher'],
+    tip: '"VPN = network key. ZTNA = app-by-app doorbell." The Publisher is Netskope\'s connector — know it.'
+  },
+  {
+    cat: 'ZTNA', diff: 'intermediate',
+    q: 'What is the Netskope Publisher and how does it work?',
+    a: 'The <strong>Publisher</strong> is a lightweight connector (Docker container or VM) deployed <span class="key">inside the private network</span> where your apps live. It creates an outbound connection to the Netskope NewEdge PoP — no inbound firewall rules needed.<br><br>Flow: User → Netskope Client → NewEdge PoP → Publisher → Private App.<br><br>Benefits: <span class="good">no exposed public IPs, no VPN concentrator, works across on-prem and multi-cloud</span>. Multiple Publishers can serve one private app for redundancy.',
+    tags: ['Publisher','ZTNA','Connector','Private Access'],
+    tip: 'Lab project 3 involves deploying a Publisher on EC2. Knowing the outbound-only connection model is key for firewall questions.'
+  },
+
+  // === DLP ===
+  {
+    cat: 'DLP', diff: 'foundational',
+    q: 'What are the main DLP detection methods Netskope supports?',
+    a: '<strong>1. Regex / keyword</strong> — pattern matching (SSN format, credit card numbers, custom terms)<br><strong>2. Exact Data Match (EDM)</strong> — fingerprint actual data records (e.g., a list of employee IDs) and detect exact matches<br><strong>3. Document fingerprinting</strong> — hash a template document and detect uploads of files derived from it<br><strong>4. ML-based classification</strong> — AI models classify content (source code, medical records, financials) without explicit patterns<br><strong>5. Label integration</strong> — honor Microsoft Purview / MIP sensitivity labels',
+    tags: ['DLP','EDM','Fingerprinting','ML','Purview'],
+    tip: 'The label integration with Microsoft Purview is current and worth mentioning — Netskope was named Microsoft Cybersecurity ISV of the Year 2025.'
+  },
+  {
+    cat: 'DLP', diff: 'intermediate',
+    q: 'What is DSPM and how does it relate to DLP?',
+    a: '<strong>DSPM (Data Security Posture Management)</strong> is about discovering and assessing sensitive data <span class="key">at rest across your cloud environment</span> — misconfigured S3 buckets, overshared SharePoint, exposed databases.<br><br>DLP = protecting data <span class="key">in motion</span> (catching it as it moves).<br>DSPM = protecting data <span class="key">at rest</span> (finding it where it lives and assessing exposure).<br><br>Netskope combines both in the One platform — DSPM feeds risk context into DLP policies.',
+    tags: ['DSPM','DLP','Data at rest','Posture'],
+    tip: 'DSPM is a newer product area. Knowing it signals you\'ve done recent research beyond basic certs.'
+  },
+
+  // === FEDRAMP ===
+  {
+    cat: 'FedRAMP', diff: 'intermediate',
+    q: 'What does FedRAMP authorization mean for a cloud product like Netskope?',
+    a: '<strong>FedRAMP (Federal Risk and Authorization Management Program)</strong> is the US government\'s standardized security assessment framework for cloud services.<br><br>To be FedRAMP authorized, Netskope must implement <span class="key">NIST 800-53 controls</span> across their environment, undergo a Third Party Assessment Organization (3PAO) audit, and maintain a continuous monitoring program.<br><br>Three impact levels: <span class="key">Low, Moderate, High</span> — most federal agencies require Moderate minimum. Higher levels require stricter controls (encryption, access logging, incident response SLAs).',
+    tags: ['FedRAMP','NIST 800-53','3PAO','GovCloud'],
+    tip: 'This is your strongest differentiator — Snowflake FedRAMP support experience maps directly. Lead with specific controls you worked with: NIST 800-53, MFA enforcement, OAuth2, audit logging.'
+  },
+  {
+    cat: 'FedRAMP', diff: 'advanced',
+    q: 'What are the FedRAMP impact levels and what changes between them?',
+    a: '<strong>Low</strong>: public-facing data, limited PII. Basic controls. Most lenient SLAs.<br><br><strong>Moderate</strong>: most federal civilian agency data. Requires 325+ NIST 800-53 controls. Encryption at rest and in transit, MFA, robust audit logging, 72-hour incident reporting.<br><br><strong>High</strong>: law enforcement, emergency services, financial systems. Stricter access controls, personnel screening, physical security, shorter incident SLAs (1 hour), more rigorous pen testing.<br><br>Netskope GovCloud runs in a <span class="key">FedRAMP Moderate authorized environment</span> isolated from commercial infrastructure.',
+    tags: ['FedRAMP','Impact levels','Moderate','High','GovCloud'],
+    tip: 'Your Snowflake FedRAMP experience gives you real depth here. Mention specific controls like SC-8 (transmission confidentiality), AC-17 (remote access), AU-2 (audit events).'
+  },
+  {
+    cat: 'FedRAMP', diff: 'advanced',
+    q: 'What is the ATO process and what is your role as a support engineer in it?',
+    a: '<strong>ATO (Authority to Operate)</strong> is the federal agency\'s formal authorization to use a cloud system. Steps:<br><br>1. Agency selects a FedRAMP-authorized service (like Netskope GovCloud)<br>2. Agency completes their own System Security Plan (SSP) and inherits controls from the provider<br>3. 3PAO assesses remaining agency-owned controls<br>4. Authorizing Official (AO) grants ATO<br><br>As a <span class="key">support engineer / FedRAMP POC</span>: you help agencies understand which controls Netskope owns vs. shared responsibility, assist with evidence packages, respond to 3PAO questions, and support continuous monitoring.',
+    tags: ['ATO','SSP','3PAO','Shared responsibility'],
+    tip: 'The POC role in the job title means you\'re the go-between for federal customers and Netskope\'s compliance team. Frame your Snowflake experience: "I helped federal customers navigate ATO processes and understand shared responsibility models."'
+  },
+
+  // === TROUBLESHOOTING ===
+  {
+    cat: 'Troubleshooting', diff: 'intermediate',
+    q: 'A user reports that a website works fine without the Netskope client but breaks when the client is on. What do you check?',
+    a: 'Start with the <span class="key">SSL inspection bypass list</span> — many breakages are certificate pinning or mutual TLS failures that resolve by adding the domain to the bypass list.<br><br>Check: <span class="key">1)</span> Is the site certificate-pinned? <span class="key">2)</span> Is the Netskope CA trusted on the device? <span class="key">3)</span> Is there a policy blocking the app or URL category? <span class="key">4)</span> Does the site use a non-standard port Netskope isn\'t steering?<br><br>Tools: check SkopeIT events for the user/time, look for SSL errors or policy blocks in the logs.',
+    tags: ['SSL bypass','Cert pinning','Troubleshooting','SkopeIT'],
+    tip: 'Classic support Q. The answer is almost always SSL inspection or a policy block. Know the bypass list workflow.'
+  },
+  {
+    cat: 'Troubleshooting', diff: 'intermediate',
+    q: 'A customer says "DLP isn\'t catching sensitive files being uploaded to Dropbox." What do you investigate?',
+    a: 'In order:<br><br><span class="key">1. Is SSL inspection enabled?</span> DLP can\'t scan encrypted traffic — check if Dropbox is on the bypass list.<br><span class="key">2. Is the DLP profile active?</span> Check the policy — is it applied to the right user group, app, and activity (upload)?<br><span class="key">3. Is it inline or API mode?</span> Inline catches uploads in real-time; API scans data at rest, not uploads.<br><span class="key">4. Check the data identifier</span> — does the file actually match the pattern? Test with a known-good sample.<br><span class="key">5. Check steering</span> — is the upload going through Netskope at all? SkopeIT events will show.',
+    tags: ['DLP','SSL inspection','Policy','Troubleshooting'],
+    tip: 'Work top-down: traffic reaching Netskope → SSL decrypted → policy applied → DLP profile → pattern match.'
+  },
+  {
+    cat: 'Troubleshooting', diff: 'advanced',
+    q: 'What is the Netskope client tunnel and what happens when it breaks?',
+    a: 'The Netskope Client creates a <strong>lightweight encrypted tunnel</strong> (DTLS/TLS) to the nearest NewEdge PoP. Traffic is steered through this tunnel transparently.<br><br>When it breaks:<br>• <span class="bad">Split tunnel misconfiguration</span> — some traffic bypasses Netskope, policy gaps<br>• <span class="bad">PoP unreachable</span> — if fail-open is configured, traffic passes uninspected; if fail-closed, user loses access<br>• <span class="bad">Client not enrolled</span> — device shows connected but wrong tenant<br>• <span class="bad">IdP auth failure</span> — client can\'t re-authenticate after token expiry<br><br>Check: client status in the UI, PoP connectivity, IdP logs.',
+    tags: ['Client tunnel','DTLS','Fail-open','Fail-closed','IdP'],
+    tip: 'Fail-open vs fail-closed is a key design decision customers argue about. Know the security tradeoff.'
+  },
+
+  // === ARCHITECTURE ===
+  {
+    cat: 'Architecture', diff: 'intermediate',
+    q: 'What is Netskope Cloud Exchange (CE)?',
+    a: '<strong>Cloud Exchange</strong> is Netskope\'s integration platform — it connects Netskope to the rest of the security stack via plugins.<br><br>Three modules:<br><span class="key">CTE (Cloud Threat Exchange)</span> — share IoCs (indicators of compromise) with SIEM, SOAR, threat intel platforms<br><span class="key">CRE (Cloud Risk Exchange)</span> — sync user/device risk scores with identity providers (Okta, Entra)<br><span class="key">CTO (Cloud Ticket Orchestration)</span> — auto-create tickets in ServiceNow, Jira from Netskope alerts<br><br>Deployed as a Docker container or VM in the customer environment.',
+    tags: ['Cloud Exchange','CTE','CRE','CTO','Integrations'],
+    tip: 'Know the three modules by name. "How does Netskope integrate with our SIEM?" → Cloud Exchange + CTE.'
+  },
+  {
+    cat: 'Architecture', diff: 'intermediate',
+    q: 'What is SkopeIT and what data does it contain?',
+    a: '<strong>SkopeIT</strong> is Netskope\'s telemetry and analytics UI — the primary visibility layer for admins and support.<br><br>Contains: <span class="key">Application events, Page events, Alerts (DLP, malware, policy), Audit logs, Network events, Client status events</span>.<br><br>Every transaction through Netskope generates an event with full context: user, device, app, instance, URL, action, data matched, policy applied, timestamp.<br><br>This is what you query when troubleshooting — "find all DLP alerts for this user in the last 24 hours."',
+    tags: ['SkopeIT','Telemetry','Events','Alerts','Visibility'],
+    tip: 'SkopeIT is your primary troubleshooting tool. Know what event types exist and what fields each contains.'
+  },
+  {
+    cat: 'Architecture', diff: 'advanced',
+    q: 'How does Netskope handle identity — what IdPs are supported and how does auth flow work?',
+    a: 'Netskope integrates with <span class="key">any SAML 2.0 / OIDC IdP</span> — Okta, Microsoft Entra (Azure AD), Ping, Google, ADFS.<br><br>Auth flow with client agent:<br>1. User installs client → client redirects to IdP for SAML auth<br>2. IdP asserts identity → Netskope client enrolls with tenant<br>3. Subsequent policy decisions use IdP-provided identity attributes (groups, roles, department)<br><br>Zero Trust Engine uses <span class="key">continuous authentication</span> — not just at enrollment, but session-by-session. Integration with Entra is especially deep — Netskope was first SSE vendor in Microsoft Entra Suite.',
+    tags: ['IdP','SAML','OIDC','Entra','Okta','Identity'],
+    tip: 'The Microsoft Entra integration is current news — Netskope named Microsoft Cybersecurity ISV of the Year 2025.'
+  }
+];
+
+const CATS = ['All', ...new Set(CARDS.map(c => c.cat))];
+const CAT_COLORS = {
+  'Platform': {bg:'rgba(0,212,255,0.1)', color:'#00d4ff', border:'rgba(0,212,255,0.25)'},
+  'CASB':     {bg:'rgba(124,58,237,0.1)', color:'#a78bfa', border:'rgba(124,58,237,0.25)'},
+  'SWG':      {bg:'rgba(245,158,11,0.1)', color:'#f59e0b', border:'rgba(245,158,11,0.25)'},
+  'ZTNA':     {bg:'rgba(16,185,129,0.1)', color:'#10b981', border:'rgba(16,185,129,0.25)'},
+  'DLP':      {bg:'rgba(239,68,68,0.1)',  color:'#ef4444', border:'rgba(239,68,68,0.25)'},
+  'FedRAMP':  {bg:'rgba(34,197,94,0.1)',  color:'#22c55e', border:'rgba(34,197,94,0.25)'},
+  'Troubleshooting': {bg:'rgba(251,146,60,0.1)', color:'#fb923c', border:'rgba(251,146,60,0.25)'},
+  'Architecture':    {bg:'rgba(99,102,241,0.1)',  color:'#818cf8', border:'rgba(99,102,241,0.25)'},
+};
+
+let deck = [];
+let idx = 0;
+let flipped = false;
+let scores = [];
+let activeCat = 'All';
+let correct = 0, wrong = 0;
+
+function buildCats() {
+  const el = document.getElementById('cats');
+  el.innerHTML = CATS.map(c => `<button class="cat-btn${c===activeCat?' active':''}" onclick="setCat('${c}')">${c} ${c==='All'?'('+CARDS.length+')':'('+CARDS.filter(x=>x.cat===c).length+')'}</button>`).join('');
+}
+
+function setCat(cat) {
+  activeCat = cat;
+  buildCats();
+  buildDeck();
+  restartDeck();
+}
+
+function buildDeck() {
+  let cards = activeCat === 'All' ? [...CARDS] : CARDS.filter(c => c.cat === activeCat);
+  // shuffle
+  deck = cards.sort(() => Math.random() - 0.5);
+  scores = new Array(deck.length).fill(null);
+  correct = 0; wrong = 0;
+  idx = 0;
+}
+
+function buildDots() {
+  const el = document.getElementById('score-dots');
+  el.innerHTML = deck.map((_, i) => {
+    let cls = i === idx ? 'dot current' : scores[i] === true ? 'dot correct' : scores[i] === false ? 'dot wrong' : 'dot';
+    return `<div class="${cls}"></div>`;
+  }).join('');
+}
+
+function updateProgress() {
+  const done = scores.filter(s => s !== null).length;
+  const pct = deck.length ? Math.round(done / deck.length * 100) : 0;
+  document.getElementById('prog-label').textContent = `Card ${idx+1} of ${deck.length}`;
+  document.getElementById('prog-pct').textContent = pct + '%';
+  document.getElementById('prog-fill').style.width = pct + '%';
+  document.getElementById('session-score').textContent = correct > 0 || wrong > 0 ? `${correct}✓  ${wrong}✗` : '';
+}
+
+function showCard() {
+  if (idx >= deck.length) { showResults(); return; }
+  const c = deck[idx];
+  flipped = false;
+  document.getElementById('card').classList.remove('flipped');
+
+  const col = CAT_COLORS[c.cat] || CAT_COLORS['Platform'];
+  const catHtml = `<span class="card-cat" style="background:${col.bg};color:${col.color};border:1px solid ${col.border};padding:3px 10px;border-radius:10px;font-size:10px;font-family:'JetBrains Mono',monospace;letter-spacing:0.1em;text-transform:uppercase">${c.cat}</span>`;
+  const diffColor = c.diff === 'foundational' ? 'var(--green)' : c.diff === 'intermediate' ? 'var(--amber)' : 'var(--red)';
+
+  document.getElementById('card-cat-f').outerHTML; // skip, set below
+  document.getElementById('card-cat-b').outerHTML;
+  document.querySelector('.card-face.front .card-meta').innerHTML = catHtml + `<span style="font-size:10px;font-family:'JetBrains Mono',monospace;color:${diffColor}">${c.diff}</span>`;
+  document.querySelector('.card-face.back .card-meta').innerHTML = catHtml + `<span style="font-size:11px;font-family:'JetBrains Mono',monospace;color:var(--muted)">answer</span>`;
+
+  document.getElementById('card-q').textContent = c.q;
+  document.getElementById('card-a').innerHTML = c.a;
+
+  const tagsEl = document.getElementById('card-tags');
+  tagsEl.innerHTML = c.tags.map(t => {
+    return `<span class="card-tag" style="background:${col.bg};color:${col.color};border-color:${col.border}">${t}</span>`;
+  }).join('');
+
+  const tipEl = document.getElementById('tip-card');
+  if (c.tip) {
+    tipEl.style.display = 'block';
+    tipEl.innerHTML = `<strong>Interview tip:</strong> ${c.tip}`;
+  } else {
+    tipEl.style.display = 'none';
+  }
+
+  document.getElementById('flip-btn').style.display = 'block';
+  document.getElementById('answer-btns').classList.remove('show');
+  document.getElementById('results').classList.remove('show');
+  document.getElementById('card-scene').style.display = 'block';
+  document.querySelectorAll('.actions .btn-flip').forEach(b => b.style.display='block');
+
+  buildDots();
+  updateProgress();
+}
+
+function flipCard() {
+  if (idx >= deck.length) return;
+  flipped = !flipped;
+  document.getElementById('card').classList.toggle('flipped', flipped);
+  if (flipped) {
+    document.getElementById('flip-btn').style.display = 'none';
+    document.getElementById('answer-btns').classList.add('show');
+  } else {
+    document.getElementById('flip-btn').style.display = 'block';
+    document.getElementById('answer-btns').classList.remove('show');
+  }
+}
+
+function markCard(isCorrect) {
+  scores[idx] = isCorrect;
+  if (isCorrect) correct++; else wrong++;
+  nextCard();
+}
+
+function nextCard() {
+  idx++;
+  if (idx >= deck.length) { showResults(); return; }
+  showCard();
+}
+
+function showResults() {
+  document.getElementById('card-scene').style.display = 'none';
+  document.querySelectorAll('.actions .btn').forEach(b => b.style.display = 'none');
+  document.getElementById('tip-card').style.display = 'none';
+
+  const total = scores.filter(s => s !== null).length;
+  const pct = total ? Math.round(correct / total * 100) : 0;
+  document.getElementById('res-pct').textContent = pct + '%';
+  document.getElementById('res-pct').style.color = pct >= 80 ? 'var(--green)' : pct >= 60 ? 'var(--amber)' : 'var(--red)';
+  document.getElementById('res-correct').textContent = correct;
+  document.getElementById('res-wrong').textContent = wrong;
+  document.getElementById('res-total').textContent = total;
+  document.getElementById('results').classList.add('show');
+  buildDots();
+}
+
+function restartDeck() {
+  buildDeck();
+  correct = 0; wrong = 0;
+  document.getElementById('card-scene').style.display = 'block';
+  document.getElementById('results').classList.remove('show');
+  document.getElementById('flip-btn').style.display = 'block';
+  document.querySelectorAll('.actions .btn').forEach(b => b.style.display = '');
+  document.getElementById('answer-btns').classList.remove('show');
+  showCard();
+}
+
+// init
+buildCats();
+buildDeck();
+showCard();
+</script>
+</body>
+</html>
