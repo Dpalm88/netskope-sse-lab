@@ -115,31 +115,29 @@
   }
 
   .card {
-    width: 100%; min-height: 260px;
+    width: 100%;
     position: relative;
-    transform-style: preserve-3d;
-    transition: transform 0.55s cubic-bezier(0.4, 0, 0.2, 1);
     cursor: pointer;
   }
 
-  .card.flipped { transform: rotateY(180deg); }
-
   .card-face {
-    position: absolute; inset: 0;
-    backface-visibility: hidden;
+    width: 100%;
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 16px;
-    padding: 32px;
+    padding: 28px;
     display: flex; flex-direction: column;
-    min-height: 260px;
+    min-height: 220px;
   }
 
   .card-face.back {
-    transform: rotateY(180deg);
+    display: none;
     border-color: var(--accent);
     background: var(--surface2);
   }
+
+  .card.flipped .card-face.front { display: none; }
+  .card.flipped .card-face.back  { display: flex; }
 
   .card-meta {
     display: flex; align-items: center; justify-content: space-between;
@@ -274,6 +272,29 @@
     margin-top: 16px;
   }
   .tip-card strong { color: var(--accent); }
+
+  @media (max-width: 600px) {
+    header { padding: 14px 16px; }
+    h1 { font-size: 17px; }
+    .logo { display: none; }
+    .cats { padding: 10px 16px; gap: 6px; }
+    .cat-btn { font-size: 10px; padding: 5px 10px; }
+    .progress-bar-wrap { padding: 10px 16px 0; }
+    .score-dots { padding: 8px 16px; }
+    main { padding: 14px 14px 24px; }
+    .card-scene { margin-bottom: 16px; }
+    .card-face { padding: 18px 16px; min-height: 180px; }
+    .card-q { font-size: 15px; }
+    .card-a { font-size: 13px; }
+    .actions { gap: 8px; }
+    .btn-flip { width: 100%; padding: 14px; font-size: 12px; }
+    .answer-btns { width: 100%; gap: 8px; }
+    .btn-correct, .btn-wrong, .btn-skip { flex: 1; padding: 12px 8px; font-size: 11px; }
+    .tip-card { font-size: 11px; padding: 12px 14px; margin-top: 12px; }
+    .result-score { font-size: 44px; }
+    .result-card { padding: 24px 18px; }
+  }
+
 </style>
 </head>
 <body>
@@ -662,24 +683,21 @@ function markCard(isCorrect) {
     back.style.borderColor = origBorder;
     back.style.boxShadow = '';
     cardEl.classList.remove('flipped');
-    // Wait for flip animation to complete, then load next card
+    // No flip animation now, just a short pause after the flash
     setTimeout(() => {
       document.querySelectorAll('.btn-correct, .btn-wrong, .btn-skip').forEach(b => b.disabled = false);
       idx++;
       if (idx >= deck.length) { showResults(); return; }
       showCard();
-    }, 380);
-  }, 320);
+    }, 80);
+  }, 300);
 }
 
 function nextCard() {
-  const cardEl = document.getElementById('card');
-  cardEl.classList.remove('flipped');
-  setTimeout(() => {
-    idx++;
-    if (idx >= deck.length) { showResults(); return; }
-    showCard();
-  }, 380);
+  document.getElementById('card').classList.remove('flipped');
+  idx++;
+  if (idx >= deck.length) { showResults(); return; }
+  showCard();
 }
 
 function showResults() {
