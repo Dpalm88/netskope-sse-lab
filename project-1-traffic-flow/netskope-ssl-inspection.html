@@ -1,0 +1,921 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SSL Inspection Explorer — Netskope SSE Lab</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap');
+
+:root {
+  --bg: #07090f;
+  --surface: #0d1117;
+  --surface2: #161b22;
+  --border: #21262d;
+  --accent: #58a6ff;
+  --green: #3fb950;
+  --red: #f85149;
+  --amber: #d29922;
+  --purple: #bc8cff;
+  --text: #c9d1d9;
+  --muted: #484f58;
+  --heading: #f0f6fc;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'IBM Plex Sans', sans-serif;
+  min-height: 100vh;
+}
+
+header {
+  padding: 18px 32px;
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+}
+
+.breadcrumb {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px; color: var(--muted); letter-spacing: 0.05em;
+}
+.breadcrumb span { color: var(--accent); }
+
+h1 {
+  font-size: 19px; font-weight: 600;
+  color: var(--heading); letter-spacing: -0.02em;
+}
+
+.mode-tabs {
+  display: flex; gap: 4px;
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 8px; padding: 3px;
+}
+
+.mode-tab {
+  font-family: 'IBM Plex Mono', monospace; font-size: 11px;
+  padding: 5px 14px; border-radius: 5px; border: none;
+  background: transparent; color: var(--muted);
+  cursor: pointer; transition: all 0.15s; letter-spacing: 0.03em;
+}
+.mode-tab.active { background: var(--accent); color: #07090f; font-weight: 600; }
+.mode-tab:hover:not(.active) { color: var(--text); }
+
+/* Layout */
+.layout {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: 0;
+  height: calc(100vh - 57px);
+}
+
+/* Canvas */
+.canvas {
+  padding: 28px 32px;
+  overflow-y: auto;
+  border-right: 1px solid var(--border);
+}
+
+.scene-title {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px; color: var(--muted); letter-spacing: 0.15em;
+  text-transform: uppercase; margin-bottom: 20px;
+}
+
+/* TLS Flow diagram */
+.flow {
+  display: flex; flex-direction: column; gap: 0;
+}
+
+.flow-row {
+  display: grid;
+  grid-template-columns: 160px 1fr 160px;
+  align-items: center;
+  min-height: 48px;
+}
+
+.actor {
+  display: flex; flex-direction: column; align-items: center;
+  gap: 6px;
+}
+
+.actor-box {
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 8px; padding: 10px 14px;
+  font-family: 'IBM Plex Mono', monospace; font-size: 11px;
+  font-weight: 500; text-align: center; min-width: 130px;
+  transition: border-color 0.3s, box-shadow 0.3s;
+}
+
+.actor-box.active {
+  border-color: var(--accent);
+  box-shadow: 0 0 12px rgba(88,166,255,0.2);
+}
+
+.actor-box.netskope {
+  border-color: var(--purple);
+  background: rgba(188,140,255,0.06);
+}
+
+.actor-box.netskope.active {
+  border-color: var(--purple);
+  box-shadow: 0 0 12px rgba(188,140,255,0.3);
+}
+
+.actor-sub {
+  font-size: 10px; color: var(--muted);
+  font-family: 'IBM Plex Mono', monospace;
+}
+
+/* Message arrows */
+.msg-area {
+  display: flex; flex-direction: column;
+  align-items: stretch; padding: 0 8px;
+  position: relative; min-height: 48px;
+  justify-content: center;
+}
+
+.msg {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 10px; border-radius: 5px;
+  background: var(--surface2); border: 1px solid var(--border);
+  cursor: pointer; transition: all 0.15s; margin: 3px 0;
+  opacity: 0.4; transition: opacity 0.3s, border-color 0.3s, background 0.3s;
+}
+
+.msg.active { opacity: 1; }
+.msg.done { opacity: 0.7; }
+
+.msg:hover { border-color: var(--accent); background: rgba(88,166,255,0.04); }
+
+.msg-arrow {
+  font-size: 13px; flex-shrink: 0;
+}
+
+.msg-label {
+  font-family: 'IBM Plex Mono', monospace; font-size: 11px;
+  flex: 1;
+}
+
+.msg-badge {
+  font-size: 9px; font-family: 'IBM Plex Mono', monospace;
+  padding: 2px 6px; border-radius: 3px; letter-spacing: 0.05em;
+  text-transform: uppercase; flex-shrink: 0;
+}
+
+/* Colors for message types */
+.msg-tls .msg-label { color: var(--green); }
+.msg-tls .msg-badge { background: rgba(63,185,80,0.12); color: var(--green); border: 1px solid rgba(63,185,80,0.25); }
+.msg-http .msg-label { color: var(--accent); }
+.msg-http .msg-badge { background: rgba(88,166,255,0.1); color: var(--accent); border: 1px solid rgba(88,166,255,0.2); }
+.msg-warn .msg-label { color: var(--amber); }
+.msg-warn .msg-badge { background: rgba(210,153,34,0.1); color: var(--amber); border: 1px solid rgba(210,153,34,0.25); }
+.msg-block .msg-label { color: var(--red); }
+.msg-block .msg-badge { background: rgba(248,81,73,0.1); color: var(--red); border: 1px solid rgba(248,81,73,0.25); }
+.msg-inspect .msg-label { color: var(--purple); }
+.msg-inspect .msg-badge { background: rgba(188,140,255,0.1); color: var(--purple); border: 1px solid rgba(188,140,255,0.25); }
+
+/* Divider between sections */
+.flow-divider {
+  border: none; border-top: 1px dashed var(--border);
+  margin: 12px 0; grid-column: 1 / -1;
+}
+
+.flow-section-label {
+  font-family: 'IBM Plex Mono', monospace; font-size: 10px;
+  color: var(--muted); letter-spacing: 0.1em; text-transform: uppercase;
+  padding: 8px 0 4px; grid-column: 1 / -1;
+}
+
+/* Actors header row */
+.actors-row {
+  display: grid;
+  grid-template-columns: 160px 1fr 160px;
+  margin-bottom: 16px;
+  align-items: start;
+}
+
+/* Failure modes */
+.failures {
+  display: flex; flex-direction: column; gap: 10px;
+  margin-top: 20px;
+}
+
+.failure-card {
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 10px; padding: 16px 18px;
+  cursor: pointer; transition: all 0.2s;
+}
+
+.failure-card:hover { border-color: var(--red); background: rgba(248,81,73,0.04); }
+.failure-card.active { border-color: var(--red); background: rgba(248,81,73,0.06); }
+
+.failure-header {
+  display: flex; align-items: center; gap: 10px; margin-bottom: 0;
+}
+
+.failure-icon {
+  width: 28px; height: 28px; border-radius: 6px;
+  background: rgba(248,81,73,0.12); border: 1px solid rgba(248,81,73,0.25);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; flex-shrink: 0;
+}
+
+.failure-name {
+  font-size: 13px; font-weight: 600; color: var(--heading);
+}
+
+.failure-body {
+  display: none; margin-top: 12px; padding-top: 12px;
+  border-top: 1px solid var(--border);
+  font-size: 12px; line-height: 1.7; color: var(--text);
+}
+
+.failure-card.active .failure-body { display: block; }
+
+.failure-body strong { color: var(--red); }
+.failure-body .fix { color: var(--green); }
+.failure-body code {
+  font-family: 'IBM Plex Mono', monospace; font-size: 11px;
+  background: rgba(88,166,255,0.08); color: var(--accent);
+  padding: 1px 5px; border-radius: 3px;
+}
+
+/* Sidebar */
+.sidebar {
+  background: var(--surface);
+  display: flex; flex-direction: column;
+  overflow-y: auto;
+}
+
+.sidebar-section {
+  padding: 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.sidebar-label {
+  font-family: 'IBM Plex Mono', monospace; font-size: 10px;
+  color: var(--muted); letter-spacing: 0.12em; text-transform: uppercase;
+  margin-bottom: 12px;
+}
+
+/* Step detail */
+.step-detail {
+  font-size: 12px; line-height: 1.75; color: var(--text);
+}
+
+.step-detail h3 {
+  font-size: 14px; font-weight: 600; color: var(--heading);
+  margin-bottom: 8px;
+}
+
+.step-detail .tag {
+  display: inline-block; font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px; padding: 2px 8px; border-radius: 3px;
+  margin: 2px; border: 1px solid;
+}
+
+.step-detail .tags { margin-top: 10px; }
+
+/* Packet inspector */
+.packet {
+  font-family: 'IBM Plex Mono', monospace; font-size: 11px;
+  background: var(--bg); border: 1px solid var(--border);
+  border-radius: 6px; padding: 12px; line-height: 1.8;
+}
+
+.packet-field { display: flex; gap: 8px; }
+.packet-key { color: var(--muted); min-width: 80px; }
+.packet-val { color: var(--green); }
+.packet-val.encrypted { color: var(--muted); font-style: italic; }
+.packet-val.warn { color: var(--amber); }
+.packet-val.bad { color: var(--red); }
+
+/* Controls */
+.controls {
+  display: flex; gap: 8px; padding: 16px 20px;
+  border-top: 1px solid var(--border);
+  margin-top: auto;
+}
+
+.ctrl-btn {
+  flex: 1; font-family: 'IBM Plex Mono', monospace; font-size: 11px;
+  font-weight: 500; padding: 9px; border-radius: 6px;
+  border: 1px solid var(--border); background: var(--surface2);
+  color: var(--text); cursor: pointer; transition: all 0.15s;
+  letter-spacing: 0.03em;
+}
+.ctrl-btn:hover { border-color: var(--accent); color: var(--accent); }
+.ctrl-btn.primary { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+.ctrl-btn.primary:hover { opacity: 0.85; }
+.ctrl-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+/* Progress */
+.step-progress {
+  display: flex; gap: 3px; flex-wrap: wrap;
+}
+
+.step-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--border); transition: background 0.3s;
+}
+.step-dot.done { background: var(--green); }
+.step-dot.current { background: var(--accent); box-shadow: 0 0 5px var(--accent); }
+
+/* Key insight box */
+.insight {
+  background: rgba(88,166,255,0.05); border: 1px solid rgba(88,166,255,0.15);
+  border-radius: 6px; padding: 10px 12px;
+  font-size: 11px; line-height: 1.6; color: var(--muted);
+  margin-top: 12px;
+}
+.insight strong { color: var(--accent); }
+
+/* Mode panels */
+.mode-panel { display: none; }
+.mode-panel.active { display: block; }
+
+@media (max-width: 700px) {
+  .layout { grid-template-columns: 1fr; height: auto; }
+  .sidebar { border-top: 1px solid var(--border); border-right: none; }
+  header { padding: 14px 16px; flex-wrap: wrap; gap: 10px; }
+  .canvas { padding: 16px; }
+  .actors-row, .flow-row { grid-template-columns: 110px 1fr 110px; }
+  .actor-box { min-width: 90px; font-size: 10px; padding: 8px 8px; }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <div class="breadcrumb">netskope-sse-lab / <span>ssl-inspection</span></div>
+    <h1>SSL Inspection Explorer</h1>
+  </div>
+  <div class="mode-tabs">
+    <button class="mode-tab active" onclick="setMode('normal')">Normal TLS</button>
+    <button class="mode-tab" onclick="setMode('netskope')">Netskope MITM</button>
+    <button class="mode-tab" onclick="setMode('failures')">Failure Modes</button>
+  </div>
+</header>
+
+<div class="layout">
+  <div class="canvas" id="canvas">
+
+    <!-- NORMAL TLS MODE -->
+    <div class="mode-panel active" id="panel-normal">
+      <div class="scene-title">Standard TLS handshake — no inspection</div>
+      <div class="actors-row">
+        <div class="actor">
+          <div class="actor-box" id="n-actor-client">Client browser</div>
+          <div class="actor-sub">managed device</div>
+        </div>
+        <div></div>
+        <div class="actor" style="align-items:flex-end">
+          <div class="actor-box" id="n-actor-dest">Destination</div>
+          <div class="actor-sub">e.g. salesforce.com</div>
+        </div>
+      </div>
+
+      <div class="flow" id="normal-flow">
+        <div class="flow-row">
+          <div></div>
+          <div class="msg-area">
+            <div class="msg msg-tls" id="n0" onclick="jumpStep(0)">
+              <span class="msg-arrow">→</span>
+              <span class="msg-label">ClientHello (TLS 1.3, cipher suites, SNI)</span>
+              <span class="msg-badge msg-tls">TLS</span>
+            </div>
+          </div>
+          <div></div>
+        </div>
+        <div class="flow-row">
+          <div></div>
+          <div class="msg-area">
+            <div class="msg msg-tls" id="n1" onclick="jumpStep(1)">
+              <span class="msg-arrow">←</span>
+              <span class="msg-label">ServerHello + Certificate</span>
+              <span class="msg-badge">TLS</span>
+            </div>
+          </div>
+          <div></div>
+        </div>
+        <div class="flow-row">
+          <div></div>
+          <div class="msg-area">
+            <div class="msg msg-tls" id="n2" onclick="jumpStep(2)">
+              <span class="msg-arrow">→</span>
+              <span class="msg-label">Verify cert chain → session keys established</span>
+              <span class="msg-badge">TLS</span>
+            </div>
+          </div>
+          <div></div>
+        </div>
+        <div class="flow-row">
+          <div></div>
+          <div class="msg-area">
+            <div class="msg msg-http" id="n3" onclick="jumpStep(3)">
+              <span class="msg-arrow">⇄</span>
+              <span class="msg-label">Encrypted HTTPS traffic flows</span>
+              <span class="msg-badge">HTTPS</span>
+            </div>
+          </div>
+          <div></div>
+        </div>
+        <div class="flow-row">
+          <div></div>
+          <div class="msg-area">
+            <div class="msg msg-warn" id="n4" onclick="jumpStep(4)" style="justify-content:center">
+              <span class="msg-arrow">⚠</span>
+              <span class="msg-label">Content opaque — no DLP, no threat scan possible</span>
+              <span class="msg-badge">blind</span>
+            </div>
+          </div>
+          <div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- NETSKOPE MITM MODE -->
+    <div class="mode-panel" id="panel-netskope">
+      <div class="scene-title">Netskope SSL inspection — man-in-the-middle</div>
+      <div class="actors-row">
+        <div class="actor">
+          <div class="actor-box" id="ns-actor-client">Client browser</div>
+          <div class="actor-sub">managed device</div>
+        </div>
+        <div class="actor" style="align-items:center">
+          <div class="actor-box netskope" id="ns-actor-ns">Netskope NewEdge</div>
+          <div class="actor-sub" style="text-align:center">SSL inspection PoP</div>
+        </div>
+        <div class="actor" style="align-items:flex-end">
+          <div class="actor-box" id="ns-actor-dest">Destination</div>
+          <div class="actor-sub">salesforce.com</div>
+        </div>
+      </div>
+
+      <div class="flow" id="netskope-flow">
+        <div class="flow-section-label" style="grid-column:1/-1">① Client → Netskope TLS session</div>
+        <div class="flow-row">
+          <div></div>
+          <div class="msg-area">
+            <div class="msg msg-tls" id="ns0" onclick="jumpNsStep(0)">
+              <span class="msg-arrow">→</span>
+              <span class="msg-label">ClientHello (SNI: salesforce.com)</span>
+              <span class="msg-badge">TLS</span>
+            </div>
+          </div>
+          <div></div>
+        </div>
+        <div class="flow-row">
+          <div></div>
+          <div class="msg-area">
+            <div class="msg msg-inspect" id="ns1" onclick="jumpNsStep(1)">
+              <span class="msg-arrow">←</span>
+              <span class="msg-label">ServerHello + Netskope CA-signed cert for salesforce.com</span>
+              <span class="msg-badge">MITM cert</span>
+            </div>
+          </div>
+          <div></div>
+        </div>
+        <div class="flow-row">
+          <div></div>
+          <div class="msg-area">
+            <div class="msg msg-tls" id="ns2" onclick="jumpNsStep(2)">
+              <span class="msg-arrow">→</span>
+              <span class="msg-label">Client trusts cert (Netskope CA is pre-deployed)</span>
+              <span class="msg-badge">TLS ✓</span>
+            </div>
+          </div>
+          <div></div>
+        </div>
+
+        <div class="flow-section-label">② Netskope → Destination TLS session</div>
+        <div class="flow-row">
+          <div></div>
+          <div class="msg-area">
+            <div class="msg msg-tls" id="ns3" onclick="jumpNsStep(3)">
+              <span class="msg-arrow">→</span>
+              <span class="msg-label">Netskope opens new TLS session to salesforce.com</span>
+              <span class="msg-badge">TLS</span>
+            </div>
+          </div>
+          <div></div>
+        </div>
+        <div class="flow-row">
+          <div></div>
+          <div class="msg-area">
+            <div class="msg msg-tls" id="ns4" onclick="jumpNsStep(4)">
+              <span class="msg-arrow">←</span>
+              <span class="msg-label">Real salesforce.com cert verified by Netskope</span>
+              <span class="msg-badge">TLS ✓</span>
+            </div>
+          </div>
+          <div></div>
+        </div>
+
+        <div class="flow-section-label">③ Single-pass inspection (plaintext visible)</div>
+        <div class="flow-row">
+          <div></div>
+          <div class="msg-area">
+            <div class="msg msg-inspect" id="ns5" onclick="jumpNsStep(5)">
+              <span class="msg-arrow">⊙</span>
+              <span class="msg-label">URL categorization + app detect + DLP scan + threat scan</span>
+              <span class="msg-badge">inspect</span>
+            </div>
+          </div>
+          <div></div>
+        </div>
+        <div class="flow-row">
+          <div></div>
+          <div class="msg-area">
+            <div class="msg msg-tls" id="ns6" onclick="jumpNsStep(6)">
+              <span class="msg-arrow">⇄</span>
+              <span class="msg-label">Re-encrypt → forward to destination</span>
+              <span class="msg-badge">TLS</span>
+            </div>
+          </div>
+          <div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- FAILURE MODES -->
+    <div class="mode-panel" id="panel-failures">
+      <div class="scene-title">SSL inspection failure modes — click to expand</div>
+      <div class="failures">
+
+        <div class="failure-card" id="f0" onclick="toggleFailure(0)">
+          <div class="failure-header">
+            <div class="failure-icon">📌</div>
+            <div>
+              <div class="failure-name">Certificate pinning</div>
+            </div>
+          </div>
+          <div class="failure-body">
+            <strong>What happens:</strong> Some apps (banking apps, Zoom, some Google services) embed ("pin") the exact certificate or public key they expect from the server. When Netskope presents its own CA-signed cert instead, the app rejects the connection — even though the cert is technically valid.<br><br>
+            <strong>Symptom:</strong> App works fine without Netskope client, breaks with it. Browser may work but native app fails.<br><br>
+            <span class="fix"><strong>Fix:</strong></span> Add the domain to the <code>SSL bypass list</code> in Netskope tenant settings. Traffic passes through uninspected — DLP and threat scanning blind for that domain, so only bypass what you must.
+          </div>
+        </div>
+
+        <div class="failure-card" id="f1" onclick="toggleFailure(1)">
+          <div class="failure-header">
+            <div class="failure-icon">🔑</div>
+            <div>
+              <div class="failure-name">CA cert not deployed</div>
+            </div>
+          </div>
+          <div class="failure-body">
+            <strong>What happens:</strong> Netskope presents its CA-signed cert to the client, but the client doesn't have the Netskope root CA in its trust store. Browser shows a scary <code>NET::ERR_CERT_AUTHORITY_INVALID</code> error for every HTTPS site.<br><br>
+            <strong>Symptom:</strong> All HTTPS sites show SSL certificate errors immediately after installing the Netskope client.<br><br>
+            <span class="fix"><strong>Fix:</strong></span> Deploy the Netskope root CA certificate to managed devices via MDM (Intune, JAMF, GPO). Must be in the OS trust store, not just the browser — native apps use the OS store.
+          </div>
+        </div>
+
+        <div class="failure-card" id="f2" onclick="toggleFailure(2)">
+          <div class="failure-header">
+            <div class="failure-icon">📋</div>
+            <div>
+              <div class="failure-name">Bypass list misconfiguration</div>
+            </div>
+          </div>
+          <div class="failure-body">
+            <strong>Too broad:</strong> Bypassing entire domains like <code>*.google.com</code> means Gmail, Drive, Docs — all uninspected. DLP can't catch exfil to personal Google Drive. Huge policy gap.<br><br>
+            <strong>Too narrow:</strong> Only bypassing <code>mybank.com</code> but not <code>api.mybank.com</code> or the CDN domains it depends on — app still breaks.<br><br>
+            <span class="fix"><strong>Fix:</strong></span> Use browser DevTools network tab to identify all domains an app contacts. Build precise bypass rules. Log bypass events in SkopeIT to audit what's escaping inspection.
+          </div>
+        </div>
+
+        <div class="failure-card" id="f3" onclick="toggleFailure(3)">
+          <div class="failure-header">
+            <div class="failure-icon">🔒</div>
+            <div>
+              <div class="failure-name">TLS 1.3 + ECH (Encrypted Client Hello)</div>
+            </div>
+          </div>
+          <div class="failure-body">
+            <strong>What happens:</strong> TLS 1.3 introduced Encrypted Client Hello (ECH), which encrypts the SNI (Server Name Indication) field — the part that tells Netskope which hostname the client is connecting to. Without SNI, Netskope can't categorize the destination, match policies by domain, or present the right cert.<br><br>
+            <strong>Symptom:</strong> Sites using ECH may bypass category-based policies or show categorization errors in SkopeIT logs.<br><br>
+            <span class="fix"><strong>Fix:</strong></span> Netskope handles this via IP-based categorization fallback and DNS-over-HTTPS controls. Some tenants disable ECH at the network level (block DoH, force plaintext DNS) to maintain visibility.
+          </div>
+        </div>
+
+        <div class="failure-card" id="f4" onclick="toggleFailure(4)">
+          <div class="failure-header">
+            <div class="failure-icon">🔐</div>
+            <div>
+              <div class="failure-name">Mutual TLS (mTLS)</div>
+            </div>
+          </div>
+          <div class="failure-body">
+            <strong>What happens:</strong> mTLS requires the <em>client</em> to also present a certificate to the server (not just server → client). Netskope can't forward the client's private cert to the destination — it can only present its own identity. The destination rejects the connection.<br><br>
+            <strong>Common scenario:</strong> API clients authenticating to internal services, IoT devices, some banking APIs.<br><br>
+            <span class="fix"><strong>Fix:</strong></span> Bypass mTLS-using domains in the SSL inspection policy. These flows can't be inspected inline — consider API-mode CASB scanning for data-at-rest coverage instead.
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+  </div><!-- /canvas -->
+
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <div class="sidebar-section">
+      <div class="sidebar-label">Progress</div>
+      <div class="step-progress" id="step-progress"></div>
+    </div>
+
+    <div class="sidebar-section" style="flex:1">
+      <div class="sidebar-label">Step detail</div>
+      <div class="step-detail" id="step-detail">
+        <h3>Select a step</h3>
+        <p style="color:var(--muted);font-size:12px;margin-top:6px">Click any message in the flow diagram to inspect it. Use Prev / Next to walk through in order.</p>
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-label">Packet inspector</div>
+      <div class="packet" id="packet-inspector">
+        <div class="packet-field"><span class="packet-key">status</span><span class="packet-val" style="color:var(--muted)">waiting...</span></div>
+      </div>
+    </div>
+
+    <div class="controls">
+      <button class="ctrl-btn" id="btn-prev" onclick="prevStep()" disabled>← Prev</button>
+      <button class="ctrl-btn primary" id="btn-next" onclick="nextStep()">Next →</button>
+      <button class="ctrl-btn" onclick="resetSteps()">↺</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const NORMAL_STEPS = [
+  {
+    id: 'n0', title: 'ClientHello',
+    body: 'The browser initiates the TLS handshake by sending a <strong>ClientHello</strong>. This contains: supported TLS versions, cipher suites the client can use, a random nonce, and the <strong>SNI (Server Name Indication)</strong> — the hostname the client wants to reach in plaintext.',
+    tags: [{l:'TLS 1.3', c:'#3fb950'},{l:'SNI: plaintext', c:'#58a6ff'},{l:'cipher suites', c:'#58a6ff'}],
+    insight: 'SNI is visible in plaintext here — this is how Netskope knows the destination hostname even before decryption.',
+    packet: [
+      {k:'type', v:'ClientHello', c:'green'},
+      {k:'version', v:'TLS 1.3', c:'green'},
+      {k:'SNI', v:'salesforce.com', c:'green'},
+      {k:'ciphers', v:'AES-256-GCM, ChaCha20', c:'green'},
+      {k:'payload', v:'(plaintext handshake)', c:''},
+    ]
+  },
+  {
+    id: 'n1', title: 'ServerHello + Certificate',
+    body: 'The destination responds with its <strong>ServerHello</strong>, selected cipher suite, and its <strong>TLS certificate</strong>. The cert contains the server\'s public key and is signed by a trusted CA (e.g. DigiCert, Let\'s Encrypt). The client will verify this cert chain against its OS trust store.',
+    tags: [{l:'server cert', c:'#3fb950'},{l:'CA-signed', c:'#3fb950'},{l:'public key', c:'#58a6ff'}],
+    insight: 'The cert chain terminates at a root CA the client already trusts. This is the trust anchor for the whole session.',
+    packet: [
+      {k:'type', v:'ServerHello + Certificate', c:'green'},
+      {k:'cert CN', v:'salesforce.com', c:'green'},
+      {k:'issuer', v:'DigiCert SHA2', c:'green'},
+      {k:'valid until', v:'2026-09-01', c:'green'},
+      {k:'pub key', v:'RSA 2048', c:'green'},
+    ]
+  },
+  {
+    id: 'n2', title: 'Session keys established',
+    body: 'The client verifies the cert, performs a key exchange (ECDHE in TLS 1.3), and both sides independently derive the same <strong>symmetric session keys</strong>. From this point all data is encrypted. Nobody except the client and server can read the content.',
+    tags: [{l:'ECDHE', c:'#3fb950'},{l:'symmetric keys', c:'#3fb950'},{l:'forward secrecy', c:'#58a6ff'}],
+    insight: 'TLS 1.3 with ECDHE provides perfect forward secrecy — even if long-term keys are compromised later, past sessions can\'t be decrypted.',
+    packet: [
+      {k:'key exchange', v:'ECDHE P-256', c:'green'},
+      {k:'session key', v:'[derived, not transmitted]', c:''},
+      {k:'forward sec', v:'yes', c:'green'},
+      {k:'status', v:'ESTABLISHED', c:'green'},
+    ]
+  },
+  {
+    id: 'n3', title: 'Encrypted traffic flows',
+    body: 'All HTTP requests and responses now flow encrypted. A network observer sees only <strong>encrypted bytes</strong> — no URLs, no headers, no body content. The destination IP and approximate data volume are visible, but nothing about what\'s being accessed or transferred.',
+    tags: [{l:'encrypted', c:'#3fb950'},{l:'opaque to network', c:'#58a6ff'}],
+    insight: 'This is good for user privacy — but it\'s also why traditional network security tools are blind to HTTPS traffic without SSL inspection.',
+    packet: [
+      {k:'src', v:'client:54231', c:''},
+      {k:'dst', v:'salesforce.com:443', c:''},
+      {k:'payload', v:'[AES-256-GCM encrypted]', c:'encrypted'},
+      {k:'URL', v:'[not visible]', c:'encrypted'},
+      {k:'body', v:'[not visible]', c:'encrypted'},
+    ]
+  },
+  {
+    id: 'n4', title: 'Security tools are blind',
+    body: 'Without SSL inspection, <strong>DLP can\'t scan</strong> file uploads, <strong>threat detection can\'t check</strong> downloaded content, and <strong>URL filtering</strong> only works at the domain level (not path/query). An employee could exfiltrate a database via HTTPS upload and it would be invisible to the proxy.',
+    tags: [{l:'DLP: blind', c:'#f85149'},{l:'threat scan: blind', c:'#f85149'},{l:'URL path: blind', c:'#d29922'}],
+    insight: '~90% of enterprise web traffic is HTTPS. Without SSL inspection, most security controls are effectively disabled.',
+    packet: [
+      {k:'DLP scan', v:'SKIPPED (encrypted)', c:'warn'},
+      {k:'threat scan', v:'SKIPPED (encrypted)', c:'warn'},
+      {k:'URL path', v:'UNKNOWN', c:'warn'},
+      {k:'app detect', v:'domain only', c:'warn'},
+      {k:'verdict', v:'allow (blind)', c:'bad'},
+    ]
+  }
+];
+
+const NS_STEPS = [
+  {
+    id: 'ns0', title: 'ClientHello intercepted',
+    body: 'The Netskope Client on the device steers HTTPS traffic to the nearest NewEdge PoP. The client sends its <strong>ClientHello</strong> to Netskope, not directly to the destination. Netskope reads the <strong>SNI</strong> to know which site is being accessed — without decrypting anything yet.',
+    tags: [{l:'SNI visible', c:'#bc8cff'},{l:'intercepted at PoP', c:'#bc8cff'}],
+    insight: 'The client doesn\'t know it\'s talking to Netskope — it sent a request to salesforce.com and Netskope answered.',
+    packet: [
+      {k:'type', v:'ClientHello', c:'green'},
+      {k:'SNI', v:'salesforce.com', c:'green'},
+      {k:'destination', v:'Netskope PoP (not origin)', c:'warn'},
+    ]
+  },
+  {
+    id: 'ns1', title: 'Netskope presents forged cert',
+    body: 'Netskope dynamically generates a certificate for <code>salesforce.com</code>, signed by the <strong>Netskope CA</strong>. This cert is technically valid — but only because the Netskope root CA was pre-deployed to the device\'s OS trust store. Without that, the browser would show a certificate error.',
+    tags: [{l:'Netskope CA', c:'#bc8cff'},{l:'dynamically generated', c:'#d29922'},{l:'requires pre-deployed root', c:'#f85149'}],
+    insight: 'This is the "man-in-the-middle" — Netskope is impersonating salesforce.com to the client, while simultaneously connecting to the real salesforce.com.',
+    packet: [
+      {k:'cert CN', v:'salesforce.com', c:'green'},
+      {k:'issuer', v:'Netskope CA (NOT DigiCert)', c:'warn'},
+      {k:'trusted?', v:'YES — if root CA deployed', c:'green'},
+      {k:'trusted?', v:'NO — if root CA missing → error', c:'bad'},
+    ]
+  },
+  {
+    id: 'ns2', title: 'Client trusts Netskope cert',
+    body: 'The client checks the cert chain, finds the Netskope root CA in its trust store, and accepts it. From the client\'s perspective, it has a normal TLS session with salesforce.com — it has no visibility that Netskope is in the middle. Session keys are established between client and Netskope.',
+    tags: [{l:'TLS session 1: client↔Netskope', c:'#3fb950'}],
+    insight: 'The client is now decryptable by Netskope. Its traffic is no longer end-to-end encrypted to salesforce.com.',
+    packet: [
+      {k:'session', v:'client ↔ Netskope', c:'green'},
+      {k:'key', v:'[Netskope holds this key]', c:'warn'},
+      {k:'E2E?', v:'no — Netskope can read', c:'warn'},
+      {k:'client aware?', v:'no', c:''},
+    ]
+  },
+  {
+    id: 'ns3', title: 'Netskope connects to origin',
+    body: 'Simultaneously, Netskope opens its own separate TLS session to the <strong>real salesforce.com</strong>. It presents itself as a normal client. The destination has no idea Netskope is proxying — it just sees a client connecting normally.',
+    tags: [{l:'TLS session 2: Netskope↔origin', c:'#3fb950'}],
+    insight: 'Two separate TLS sessions: client↔Netskope and Netskope↔destination. Netskope sits in the middle with both keys.',
+    packet: [
+      {k:'from', v:'Netskope PoP IP', c:''},
+      {k:'to', v:'salesforce.com:443', c:'green'},
+      {k:'cert', v:'real DigiCert cert verified', c:'green'},
+      {k:'session', v:'Netskope ↔ salesforce.com', c:'green'},
+    ]
+  },
+  {
+    id: 'ns4', title: 'Origin cert verified by Netskope',
+    body: 'Netskope verifies the <strong>real salesforce.com certificate</strong> against public CAs. If the cert is invalid, expired, or self-signed, Netskope can block the connection and alert on the anomaly — even if the client would have trusted it naively.',
+    tags: [{l:'cert validation', c:'#3fb950'},{l:'Netskope can block bad certs', c:'#3fb950'}],
+    insight: 'SSL inspection actually adds a layer of cert validation that the client wouldn\'t do itself — Netskope can catch cert misissuance.',
+    packet: [
+      {k:'cert CN', v:'salesforce.com', c:'green'},
+      {k:'issuer', v:'DigiCert', c:'green'},
+      {k:'chain', v:'valid to root', c:'green'},
+      {k:'pinned?', v:'no (if yes → bypass needed)', c:'warn'},
+    ]
+  },
+  {
+    id: 'ns5', title: 'Single-pass inspection',
+    body: 'With both TLS sessions established, Netskope has <strong>plaintext access</strong> to all content flowing between client and destination. In a single pass, it runs: URL categorization, app detection + CCI scoring, DLP scan (regex / EDM / fingerprint / ML), and threat detection (malware / C2 / phishing).',
+    tags: [{l:'URL categorize', c:'#bc8cff'},{l:'app detect', c:'#bc8cff'},{l:'DLP scan', c:'#bc8cff'},{l:'threat scan', c:'#bc8cff'}],
+    insight: '"Single-pass" is Netskope\'s key perf advantage — all four inspections run simultaneously, not serially.',
+    packet: [
+      {k:'URL path', v:'/api/v1/upload (VISIBLE)', c:'green'},
+      {k:'DLP', v:'scanning...', c:'green'},
+      {k:'threat', v:'scanning...', c:'green'},
+      {k:'app', v:'Salesforce (CCI: 92)', c:'green'},
+      {k:'latency', v:'~2ms inspection overhead', c:'green'},
+    ]
+  },
+  {
+    id: 'ns6', title: 'Re-encrypt and forward',
+    body: 'After the policy decision (allow/block/alert/coach), Netskope <strong>re-encrypts</strong> the content using the session keys from the Netskope↔destination TLS session and forwards it. The destination receives the request as if it came from a normal client. No data is stored at the PoP.',
+    tags: [{l:'re-encrypted', c:'#3fb950'},{l:'no data at rest', c:'#3fb950'},{l:'full audit log written', c:'#58a6ff'}],
+    insight: 'The round-trip from the user\'s perspective is a few milliseconds of overhead. NewEdge PoPs are close to major cloud destinations to minimize this.',
+    packet: [
+      {k:'action', v:'ALLOW (re-encrypt + fwd)', c:'green'},
+      {k:'DLP result', v:'no match', c:'green'},
+      {k:'threat', v:'clean', c:'green'},
+      {k:'log', v:'written to SkopeIT', c:'green'},
+      {k:'data stored?', v:'no', c:'green'},
+    ]
+  }
+];
+
+let mode = 'normal';
+let currentStep = 0;
+let steps = NORMAL_STEPS;
+
+function setMode(m) {
+  mode = m;
+  document.querySelectorAll('.mode-tab').forEach((t,i) => {
+    t.classList.toggle('active', ['normal','netskope','failures'][i] === m);
+  });
+  document.querySelectorAll('.mode-panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('panel-' + m).classList.add('active');
+
+  if (m === 'normal') steps = NORMAL_STEPS;
+  else if (m === 'netskope') steps = NS_STEPS;
+  else steps = [];
+
+  currentStep = 0;
+  resetSteps();
+}
+
+function jumpStep(i) {
+  if (mode === 'failures') return;
+  currentStep = i;
+  renderStep();
+}
+
+function jumpNsStep(i) {
+  if (mode !== 'netskope') return;
+  currentStep = i;
+  renderStep();
+}
+
+function nextStep() {
+  if (currentStep < steps.length - 1) { currentStep++; renderStep(); }
+}
+
+function prevStep() {
+  if (currentStep > 0) { currentStep--; renderStep(); }
+}
+
+function resetSteps() {
+  currentStep = 0;
+  if (steps.length) renderStep();
+  else {
+    document.getElementById('step-detail').innerHTML = '<p style="color:var(--muted);font-size:12px">Click any failure card to expand details.</p>';
+    document.getElementById('packet-inspector').innerHTML = '<div class="packet-field"><span class="packet-key">mode</span><span class="packet-val" style="color:var(--muted)">failure modes</span></div>';
+    document.getElementById('step-progress').innerHTML = '';
+    document.getElementById('btn-next').disabled = true;
+    document.getElementById('btn-prev').disabled = true;
+  }
+}
+
+function renderStep() {
+  if (!steps.length) return;
+  const s = steps[currentStep];
+
+  // Highlight msgs
+  steps.forEach((st, i) => {
+    const el = document.getElementById(st.id);
+    if (!el) return;
+    el.classList.remove('active', 'done');
+    if (i === currentStep) el.classList.add('active');
+    else if (i < currentStep) el.classList.add('done');
+  });
+
+  // Highlight actors
+  const allActors = document.querySelectorAll('.actor-box');
+  allActors.forEach(a => a.classList.remove('active'));
+
+  // Detail panel
+  const detail = document.getElementById('step-detail');
+  detail.innerHTML = `
+    <h3>${s.title}</h3>
+    <p style="margin-top:8px">${s.body}</p>
+    <div class="tags" style="margin-top:10px">
+      ${s.tags.map(t => `<span class="tag" style="color:${t.c};border-color:${t.c}33;background:${t.c}11">${t.l}</span>`).join('')}
+    </div>
+    ${s.insight ? `<div class="insight"><strong>Key insight:</strong> ${s.insight}</div>` : ''}
+  `;
+
+  // Packet
+  const pkt = document.getElementById('packet-inspector');
+  pkt.innerHTML = s.packet.map(f => {
+    const cls = f.c === 'green' ? 'green' : f.c === 'warn' ? 'warn' : f.c === 'bad' ? 'bad' : f.c === 'encrypted' ? 'encrypted' : '';
+    return `<div class="packet-field"><span class="packet-key">${f.k}</span><span class="packet-val ${cls}">${f.v}</span></div>`;
+  }).join('');
+
+  // Progress dots
+  const prog = document.getElementById('step-progress');
+  prog.innerHTML = steps.map((_,i) => {
+    const cls = i === currentStep ? 'step-dot current' : i < currentStep ? 'step-dot done' : 'step-dot';
+    return `<div class="${cls}"></div>`;
+  }).join('');
+
+  // Buttons
+  document.getElementById('btn-prev').disabled = currentStep === 0;
+  document.getElementById('btn-next').disabled = currentStep === steps.length - 1;
+}
+
+function toggleFailure(i) {
+  const card = document.getElementById('f' + i);
+  const wasActive = card.classList.contains('active');
+  document.querySelectorAll('.failure-card').forEach(c => c.classList.remove('active'));
+  if (!wasActive) card.classList.add('active');
+}
+
+// Init
+renderStep();
+</script>
+</body>
+</html>
