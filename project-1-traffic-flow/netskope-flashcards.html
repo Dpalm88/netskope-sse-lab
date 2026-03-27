@@ -646,13 +646,42 @@ function flipCard() {
 function markCard(isCorrect) {
   scores[idx] = isCorrect;
   if (isCorrect) correct++; else wrong++;
-  nextCard();
+
+  // Flash the card border green/red to confirm recording
+  const cardEl = document.getElementById('card');
+  const flashColor = isCorrect ? 'var(--green)' : 'var(--red)';
+  const back = document.querySelector('.card-face.back');
+  const origBorder = back.style.borderColor;
+  back.style.transition = 'border-color 0.15s';
+  back.style.borderColor = flashColor;
+  back.style.boxShadow = `0 0 24px ${isCorrect ? 'rgba(16,185,129,0.4)' : 'rgba(239,68,68,0.4)'}`;
+
+  // Disable buttons immediately to prevent double-tap
+  document.querySelectorAll('.btn-correct, .btn-wrong, .btn-skip').forEach(b => b.disabled = true);
+
+  // Brief pause so user sees the flash, then flip back and advance
+  setTimeout(() => {
+    back.style.borderColor = origBorder;
+    back.style.boxShadow = '';
+    cardEl.classList.remove('flipped');
+    // Wait for flip animation to complete, then load next card
+    setTimeout(() => {
+      document.querySelectorAll('.btn-correct, .btn-wrong, .btn-skip').forEach(b => b.disabled = false);
+      idx++;
+      if (idx >= deck.length) { showResults(); return; }
+      showCard();
+    }, 380);
+  }, 320);
 }
 
 function nextCard() {
-  idx++;
-  if (idx >= deck.length) { showResults(); return; }
-  showCard();
+  const cardEl = document.getElementById('card');
+  cardEl.classList.remove('flipped');
+  setTimeout(() => {
+    idx++;
+    if (idx >= deck.length) { showResults(); return; }
+    showCard();
+  }, 380);
 }
 
 function showResults() {
