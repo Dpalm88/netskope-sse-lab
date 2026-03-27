@@ -1,0 +1,842 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Netskope Traffic Flow Simulator</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Syne:wght@400;600;700;800&display=swap');
+
+  :root {
+    --bg: #0a0e1a;
+    --surface: #111827;
+    --surface2: #1a2235;
+    --border: #1e2d45;
+    --accent: #00d4ff;
+    --accent2: #7c3aed;
+    --green: #10b981;
+    --red: #ef4444;
+    --amber: #f59e0b;
+    --text: #e2e8f0;
+    --muted: #64748b;
+    --packet: #00d4ff;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* scanline overlay */
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,212,255,0.015) 2px, rgba(0,212,255,0.015) 4px);
+    pointer-events: none; z-index: 100;
+  }
+
+  header {
+    padding: 28px 40px 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+
+  .logo {
+    font-size: 11px; font-family: 'JetBrains Mono', monospace;
+    color: var(--accent); letter-spacing: 0.2em; text-transform: uppercase;
+  }
+
+  h1 {
+    font-size: 22px; font-weight: 800; letter-spacing: -0.02em;
+    color: var(--text);
+  }
+
+  h1 span { color: var(--accent); }
+
+  .tag {
+    font-size: 10px; font-family: 'JetBrains Mono', monospace;
+    background: rgba(0,212,255,0.1); color: var(--accent);
+    border: 1px solid rgba(0,212,255,0.25); border-radius: 4px;
+    padding: 3px 8px; letter-spacing: 0.1em;
+  }
+
+  main { padding: 32px 40px; max-width: 1100px; margin: 0 auto; }
+
+  /* Controls */
+  .controls {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 12px; margin-bottom: 32px;
+  }
+
+  .control-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; padding: 14px 16px;
+    display: flex; align-items: center; justify-content: space-between;
+    cursor: pointer; transition: border-color 0.2s, background 0.2s;
+    user-select: none;
+  }
+
+  .control-card:hover { border-color: var(--accent); background: var(--surface2); }
+  .control-card.active { border-color: var(--accent); background: rgba(0,212,255,0.06); }
+
+  .control-label {
+    font-size: 12px; font-weight: 600; letter-spacing: 0.05em;
+    text-transform: uppercase; color: var(--muted);
+  }
+  .control-card.active .control-label { color: var(--accent); }
+
+  .toggle {
+    width: 36px; height: 20px; background: var(--border);
+    border-radius: 10px; position: relative; transition: background 0.2s;
+  }
+  .control-card.active .toggle { background: var(--accent); }
+  .toggle::after {
+    content: ''; position: absolute; top: 2px; left: 2px;
+    width: 16px; height: 16px; border-radius: 50%; background: #fff;
+    transition: transform 0.2s;
+  }
+  .control-card.active .toggle::after { transform: translateX(16px); }
+
+  .select-control {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; padding: 14px 16px;
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  }
+
+  .select-control select {
+    background: var(--surface2); border: 1px solid var(--border);
+    color: var(--text); border-radius: 6px; padding: 4px 8px;
+    font-family: 'JetBrains Mono', monospace; font-size: 11px;
+    cursor: pointer; outline: none;
+  }
+
+  /* Pipeline */
+  .pipeline-wrapper {
+    position: relative; margin-bottom: 32px;
+  }
+
+  .pipeline-track {
+    display: flex; gap: 0; position: relative;
+    margin-bottom: 20px;
+  }
+
+  /* Packet animation line */
+  .packet-rail {
+    position: absolute; top: 50%; left: 0; right: 0;
+    height: 2px; background: linear-gradient(90deg, transparent, var(--border) 10%, var(--border) 90%, transparent);
+    transform: translateY(-50%); z-index: 0;
+    pointer-events: none;
+  }
+
+  .packet {
+    position: absolute; top: 50%; left: -20px;
+    width: 16px; height: 16px; border-radius: 50%;
+    background: var(--accent); box-shadow: 0 0 12px var(--accent);
+    transform: translateY(-50%);
+    z-index: 10; pointer-events: none;
+    transition: none;
+  }
+
+  .packet.blocked { background: var(--red); box-shadow: 0 0 12px var(--red); }
+  .packet.warned  { background: var(--amber); box-shadow: 0 0 12px var(--amber); }
+  .packet.allowed { background: var(--green); box-shadow: 0 0 12px var(--green); }
+
+  /* Stage nodes */
+  .stage {
+    flex: 1; min-width: 0; position: relative; z-index: 1;
+    display: flex; flex-direction: column; align-items: center;
+    padding: 0 6px;
+  }
+
+  .stage-node {
+    width: 100%; background: var(--surface);
+    border: 1px solid var(--border); border-radius: 10px;
+    padding: 14px 10px; text-align: center;
+    transition: border-color 0.3s, background 0.3s, box-shadow 0.3s;
+    cursor: pointer; position: relative; overflow: hidden;
+  }
+
+  .stage-node::before {
+    content: ''; position: absolute; inset: 0;
+    background: linear-gradient(135deg, rgba(0,212,255,0.05) 0%, transparent 60%);
+    opacity: 0; transition: opacity 0.3s;
+  }
+
+  .stage-node:hover::before { opacity: 1; }
+
+  .stage-node.active {
+    border-color: var(--accent);
+    box-shadow: 0 0 20px rgba(0,212,255,0.2), inset 0 0 20px rgba(0,212,255,0.04);
+  }
+
+  .stage-node.blocked-stage {
+    border-color: var(--red);
+    box-shadow: 0 0 20px rgba(239,68,68,0.2);
+    animation: pulse-red 1s ease infinite;
+  }
+
+  .stage-node.warned-stage {
+    border-color: var(--amber);
+    box-shadow: 0 0 20px rgba(245,158,11,0.2);
+  }
+
+  .stage-node.passed-stage {
+    border-color: var(--green);
+    box-shadow: 0 0 16px rgba(16,185,129,0.15);
+  }
+
+  @keyframes pulse-red {
+    0%,100% { box-shadow: 0 0 20px rgba(239,68,68,0.2); }
+    50% { box-shadow: 0 0 30px rgba(239,68,68,0.4); }
+  }
+
+  .stage-icon {
+    font-size: 22px; margin-bottom: 6px; display: block;
+  }
+
+  .stage-name {
+    font-size: 11px; font-weight: 700; letter-spacing: 0.06em;
+    text-transform: uppercase; color: var(--muted);
+    line-height: 1.3;
+  }
+
+  .stage-node.active .stage-name,
+  .stage-node.passed-stage .stage-name { color: var(--text); }
+
+  .stage-status {
+    font-size: 9px; font-family: 'JetBrains Mono', monospace;
+    margin-top: 6px; padding: 2px 6px; border-radius: 3px;
+    letter-spacing: 0.08em; text-transform: uppercase;
+    background: var(--surface2); color: var(--muted);
+    display: inline-block;
+  }
+
+  .stage-status.ok { background: rgba(16,185,129,0.15); color: var(--green); }
+  .stage-status.blocked { background: rgba(239,68,68,0.15); color: var(--red); }
+  .stage-status.warn { background: rgba(245,158,11,0.15); color: var(--amber); }
+  .stage-status.inspecting { background: rgba(0,212,255,0.15); color: var(--accent); }
+
+  .arrow {
+    position: absolute; right: -14px; top: 50%;
+    transform: translateY(-50%); z-index: 2;
+    color: var(--border); font-size: 18px; pointer-events: none;
+  }
+
+  /* Detail panel */
+  .detail-panel {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; padding: 24px; margin-bottom: 32px;
+    min-height: 140px; transition: border-color 0.3s;
+  }
+
+  .detail-panel.active { border-color: var(--accent); }
+  .detail-panel.blocked { border-color: var(--red); }
+  .detail-panel.warned { border-color: var(--amber); }
+
+  .detail-header {
+    display: flex; align-items: center; gap: 12px; margin-bottom: 12px;
+  }
+
+  .detail-icon { font-size: 28px; }
+
+  .detail-title {
+    font-size: 16px; font-weight: 700; letter-spacing: -0.01em;
+  }
+
+  .detail-subtitle {
+    font-size: 11px; font-family: 'JetBrains Mono', monospace;
+    color: var(--muted); margin-top: 2px;
+  }
+
+  .detail-body {
+    font-size: 13px; color: var(--muted); line-height: 1.7;
+  }
+
+  .detail-body strong { color: var(--text); font-weight: 600; }
+
+  .detail-tags {
+    display: flex; flex-wrap: wrap; gap: 6px; margin-top: 14px;
+  }
+
+  .detail-tag {
+    font-size: 10px; font-family: 'JetBrains Mono', monospace;
+    padding: 3px 8px; border-radius: 4px; border: 1px solid;
+  }
+  .detail-tag.blue { background: rgba(0,212,255,0.08); color: var(--accent); border-color: rgba(0,212,255,0.2); }
+  .detail-tag.green { background: rgba(16,185,129,0.08); color: var(--green); border-color: rgba(16,185,129,0.2); }
+  .detail-tag.red { background: rgba(239,68,68,0.08); color: var(--red); border-color: rgba(239,68,68,0.2); }
+  .detail-tag.amber { background: rgba(245,158,11,0.08); color: var(--amber); border-color: rgba(245,158,11,0.2); }
+  .detail-tag.purple { background: rgba(124,58,237,0.08); color: #a78bfa; border-color: rgba(124,58,237,0.2); }
+
+  /* Outcome */
+  .outcome {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; padding: 20px 24px;
+    display: flex; align-items: center; gap: 20px;
+  }
+
+  .outcome-icon { font-size: 36px; }
+
+  .outcome-label {
+    font-size: 11px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.1em; color: var(--muted); margin-bottom: 4px;
+  }
+
+  .outcome-value {
+    font-size: 20px; font-weight: 800; letter-spacing: -0.02em;
+  }
+
+  .outcome-desc {
+    font-size: 12px; color: var(--muted); margin-top: 4px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  .outcome.allow { border-color: var(--green); }
+  .outcome.allow .outcome-value { color: var(--green); }
+  .outcome.block { border-color: var(--red); }
+  .outcome.block .outcome-value { color: var(--red); }
+  .outcome.warn  { border-color: var(--amber); }
+  .outcome.warn  .outcome-value { color: var(--amber); }
+  .outcome.coach { border-color: var(--amber); }
+  .outcome.coach .outcome-value { color: var(--amber); }
+
+  /* Run button */
+  .run-btn {
+    display: flex; align-items: center; gap: 10px;
+    background: var(--accent); color: var(--bg);
+    border: none; border-radius: 8px; padding: 12px 24px;
+    font-family: 'Syne', sans-serif; font-size: 13px; font-weight: 700;
+    letter-spacing: 0.05em; text-transform: uppercase;
+    cursor: pointer; margin-bottom: 28px;
+    transition: opacity 0.2s, transform 0.1s;
+  }
+
+  .run-btn:hover { opacity: 0.9; transform: translateY(-1px); }
+  .run-btn:active { transform: translateY(0); }
+  .run-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .run-btn .dot {
+    width: 8px; height: 8px; border-radius: 50%; background: var(--bg);
+  }
+
+  .run-btn.running .dot {
+    animation: blink 0.5s ease infinite;
+  }
+
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+
+  /* Log */
+  .log {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; padding: 16px; margin-top: 20px;
+    font-family: 'JetBrains Mono', monospace; font-size: 11px;
+    max-height: 160px; overflow-y: auto; line-height: 1.8;
+  }
+
+  .log-line { display: flex; gap: 12px; }
+  .log-time { color: var(--muted); flex-shrink: 0; }
+  .log-msg { color: var(--text); }
+  .log-msg.ok { color: var(--green); }
+  .log-msg.blocked { color: var(--red); }
+  .log-msg.warn { color: var(--amber); }
+  .log-msg.info { color: var(--accent); }
+
+  footer {
+    padding: 20px 40px; border-top: 1px solid var(--border);
+    font-size: 10px; font-family: 'JetBrains Mono', monospace;
+    color: var(--muted); text-align: center; letter-spacing: 0.05em;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <div class="logo">netskope-sse-lab / project-1</div>
+    <h1>Traffic Flow <span>Simulator</span></h1>
+  </div>
+  <span class="tag">Single-Pass Inspection Pipeline</span>
+</header>
+
+<main>
+
+  <!-- Controls -->
+  <div class="controls">
+    <div class="control-card active" id="ctrl-ssl" onclick="toggleCtrl('ssl')">
+      <span class="control-label">SSL Inspection</span>
+      <div class="toggle"></div>
+    </div>
+    <div class="control-card active" id="ctrl-dlp" onclick="toggleCtrl('dlp')">
+      <span class="control-label">DLP Enabled</span>
+      <div class="toggle"></div>
+    </div>
+    <div class="control-card" id="ctrl-threat" onclick="toggleCtrl('threat')">
+      <span class="control-label">Threat Detected</span>
+      <div class="toggle"></div>
+    </div>
+    <div class="control-card" id="ctrl-dlpmatch" onclick="toggleCtrl('dlpmatch')">
+      <span class="control-label">DLP Match</span>
+      <div class="toggle"></div>
+    </div>
+    <div class="select-control">
+      <span class="control-label" style="white-space:nowrap">Steering</span>
+      <select id="sel-steering">
+        <option value="client">Client agent</option>
+        <option value="pac">PAC file</option>
+        <option value="ipsec">IPSec/GRE</option>
+      </select>
+    </div>
+    <div class="select-control">
+      <span class="control-label" style="white-space:nowrap">Policy action</span>
+      <select id="sel-policy">
+        <option value="allow">Allow</option>
+        <option value="block">Block</option>
+        <option value="alert">Alert</option>
+        <option value="coach">Coach</option>
+        <option value="quarantine">Quarantine</option>
+      </select>
+    </div>
+  </div>
+
+  <button class="run-btn" id="run-btn" onclick="runSimulation()">
+    <div class="dot"></div>
+    Simulate Request
+  </button>
+
+  <!-- Pipeline -->
+  <div class="pipeline-wrapper">
+    <div class="packet-rail"></div>
+    <div id="packet" class="packet" style="display:none"></div>
+    <div class="pipeline-track" id="pipeline">
+
+      <div class="stage" id="stage-0">
+        <div class="stage-node" onclick="selectStage(0)">
+          <span class="stage-icon">💻</span>
+          <div class="stage-name">User Device</div>
+          <div class="stage-status" id="status-0">idle</div>
+        </div>
+      </div>
+
+      <div class="stage" id="stage-1">
+        <div class="stage-node" onclick="selectStage(1)">
+          <span class="stage-icon">📡</span>
+          <div class="stage-name">Traffic Steering</div>
+          <div class="stage-status" id="status-1">idle</div>
+        </div>
+      </div>
+
+      <div class="stage" id="stage-2">
+        <div class="stage-node" onclick="selectStage(2)">
+          <span class="stage-icon">🔓</span>
+          <div class="stage-name">SSL Decrypt</div>
+          <div class="stage-status" id="status-2">idle</div>
+        </div>
+      </div>
+
+      <div class="stage" id="stage-3">
+        <div class="stage-node" onclick="selectStage(3)">
+          <span class="stage-icon">🔍</span>
+          <div class="stage-name">Single-Pass Inspect</div>
+          <div class="stage-status" id="status-3">idle</div>
+        </div>
+      </div>
+
+      <div class="stage" id="stage-4">
+        <div class="stage-node" onclick="selectStage(4)">
+          <span class="stage-icon">⚖️</span>
+          <div class="stage-name">Policy Engine</div>
+          <div class="stage-status" id="status-4">idle</div>
+        </div>
+      </div>
+
+      <div class="stage" id="stage-5">
+        <div class="stage-node" onclick="selectStage(5)">
+          <span class="stage-icon">🔒</span>
+          <div class="stage-name">Re-encrypt</div>
+          <div class="stage-status" id="status-5">idle</div>
+        </div>
+      </div>
+
+      <div class="stage" id="stage-6">
+        <div class="stage-node" onclick="selectStage(6)">
+          <span class="stage-icon">🌐</span>
+          <div class="stage-name">Destination</div>
+          <div class="stage-status" id="status-6">idle</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Detail panel -->
+  <div class="detail-panel" id="detail-panel">
+    <div class="detail-header">
+      <div class="detail-icon" id="detail-icon">📋</div>
+      <div>
+        <div class="detail-title" id="detail-title">Click a stage or run a simulation</div>
+        <div class="detail-subtitle" id="detail-subtitle">Netskope One SSE — single-pass inspection pipeline</div>
+      </div>
+    </div>
+    <div class="detail-body" id="detail-body">
+      Configure the controls above to set up your scenario, then hit <strong>Simulate Request</strong> to watch traffic move through the pipeline. Click any stage node to inspect what happens there.
+    </div>
+    <div class="detail-tags" id="detail-tags"></div>
+  </div>
+
+  <!-- Outcome -->
+  <div class="outcome allow" id="outcome" style="display:none">
+    <div class="outcome-icon" id="outcome-icon">✅</div>
+    <div>
+      <div class="outcome-label">Final outcome</div>
+      <div class="outcome-value" id="outcome-value">ALLOWED</div>
+      <div class="outcome-desc" id="outcome-desc"></div>
+    </div>
+  </div>
+
+  <!-- Log -->
+  <div class="log" id="log">
+    <div class="log-line"><span class="log-time">--:--:--</span><span class="log-msg info">// ready — configure scenario and run simulation</span></div>
+  </div>
+
+</main>
+
+<footer>netskope-sse-lab · project-1: traffic flow simulator · dpalm88</footer>
+
+<script>
+const state = {
+  ssl: true, dlp: true, threat: false, dlpmatch: false,
+  running: false, currentStage: -1
+};
+
+const stageData = [
+  {
+    icon: '💻', title: 'User Device',
+    subtitle: 'Origin of the request',
+    body: 'The user opens a browser or app. The <strong>Netskope Client</strong> (or PAC file / IPSec tunnel) intercepts outbound traffic before it leaves the device. With the client agent, this happens transparently — the user does not configure anything manually.',
+    tags: [
+      {label:'Windows / macOS / Linux', cls:'blue'},{label:'iOS / Android', cls:'blue'},
+      {label:'Netskope Client agent', cls:'purple'},{label:'FQDN: <tenant>.goskope.com', cls:'blue'}
+    ]
+  },
+  {
+    icon: '📡', title: 'Traffic Steering',
+    subtitle: 'How traffic reaches Netskope',
+    body: '<strong>Client agent</strong>: lightweight tunnel, most common for managed devices. <strong>PAC file</strong>: explicit proxy config, browser-based, no agent install needed — common for BYOD. <strong>IPSec/GRE tunnel</strong>: branch office or data center, steers all traffic from a site. The steering method determines what can and cannot be inspected.',
+    tags: [
+      {label:'Client agent', cls:'green'},{label:'PAC file', cls:'blue'},
+      {label:'IPSec/GRE tunnel', cls:'purple'},{label:'NewEdge PoP', cls:'blue'}
+    ]
+  },
+  {
+    icon: '🔓', title: 'SSL/TLS Decryption',
+    subtitle: 'Man-in-the-middle inspection',
+    body: 'Netskope intercepts the TLS handshake and presents its own certificate to the client (signed by a CA that must be trusted on the device). It establishes two TLS sessions: client↔Netskope and Netskope↔destination. This is required for DLP and threat detection on HTTPS traffic. <strong>Bypass lists</strong> can exclude specific domains (banking, health apps) from decryption.',
+    tags: [
+      {label:'TLS 1.2 / 1.3', cls:'blue'},{label:'Certificate pinning risk', cls:'amber'},
+      {label:'Bypass domains', cls:'green'},{label:'Required for DLP', cls:'purple'}
+    ]
+  },
+  {
+    icon: '🔍', title: 'Single-Pass Inspection',
+    subtitle: 'URL + app + DLP + threat — simultaneously',
+    body: 'This is Netskope\'s key architecture advantage. Traditional proxies run serial inspection (URL → AV → DLP → ...). Netskope does it all <strong>in one pass</strong>, which reduces latency. In a single pass: URL categorization, app detection + CCI scoring, DLP scan (regex, exact match, fingerprint, ML), threat detection (malware, C2, phishing). The result of each feeds into the policy decision.',
+    tags: [
+      {label:'URL categorization', cls:'blue'},{label:'App detection + CCI', cls:'blue'},
+      {label:'DLP scan', cls:'purple'},{label:'Threat detection', cls:'red'},
+      {label:'Single pass = low latency', cls:'green'}
+    ]
+  },
+  {
+    icon: '⚖️', title: 'Policy Engine',
+    subtitle: 'Zero Trust Engine makes the call',
+    body: 'The Zero Trust Engine evaluates the full context: user identity, device posture, app + instance (corporate vs personal), activity type, data classification, threat signals. Policy actions: <strong>Allow</strong>, <strong>Block</strong>, <strong>Alert</strong> (allow + log), <strong>Coach</strong> (warn user, let them proceed), <strong>Quarantine</strong> (hold file for review). Instance awareness is key — block personal Google Drive while allowing corporate.',
+    tags: [
+      {label:'Allow', cls:'green'},{label:'Block', cls:'red'},
+      {label:'Alert', cls:'blue'},{label:'Coach', cls:'amber'},
+      {label:'Quarantine', cls:'amber'},{label:'Instance awareness', cls:'purple'}
+    ]
+  },
+  {
+    icon: '🔒', title: 'Re-encrypt',
+    subtitle: 'Traffic restored to TLS',
+    body: 'After inspection and policy enforcement, traffic is re-encrypted using the destination\'s real TLS certificate before being forwarded. The user\'s browser sees a valid certificate. This stage is skipped (no-op) for bypassed domains or if SSL inspection is disabled. Decryption → inspection → re-encryption happens in memory at the PoP — data does not persist at rest.',
+    tags: [
+      {label:'Re-encrypted before forwarding', cls:'green'},
+      {label:'No data at rest at PoP', cls:'blue'},
+      {label:'Skipped on bypass list', cls:'amber'}
+    ]
+  },
+  {
+    icon: '🌐', title: 'Destination',
+    subtitle: 'SaaS / web / private app',
+    body: 'Traffic reaches its destination: a SaaS app (Salesforce, O365, Dropbox), a public website, or a private app accessed via ZTNA Publisher. If blocked, the user sees a Netskope block page instead. If coached, an interstitial page lets them acknowledge risk and proceed. Audit logs are written regardless of allow/block — full telemetry for every transaction.',
+    tags: [
+      {label:'SaaS apps', cls:'blue'},{label:'Web / internet', cls:'blue'},
+      {label:'Private apps via ZTNA', cls:'purple'},{label:'Full audit log', cls:'green'}
+    ]
+  }
+];
+
+function toggleCtrl(key) {
+  state[key] = !state[key];
+  const el = document.getElementById('ctrl-'+key);
+  el.classList.toggle('active', state[key]);
+}
+
+function addLog(msg, cls='') {
+  const log = document.getElementById('log');
+  const now = new Date();
+  const t = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`;
+  const line = document.createElement('div');
+  line.className = 'log-line';
+  line.innerHTML = `<span class="log-time">${t}</span><span class="log-msg ${cls}">${msg}</span>`;
+  log.appendChild(line);
+  log.scrollTop = log.scrollHeight;
+}
+
+function setStageStatus(i, text, cls) {
+  const el = document.getElementById(`status-${i}`);
+  el.textContent = text;
+  el.className = `stage-status ${cls}`;
+}
+
+function setStageStyle(i, cls) {
+  const node = document.querySelector(`#stage-${i} .stage-node`);
+  node.className = 'stage-node ' + cls;
+}
+
+function resetStages() {
+  for (let i = 0; i <= 6; i++) {
+    setStageStatus(i, 'idle', '');
+    setStageStyle(i, '');
+  }
+  document.getElementById('outcome').style.display = 'none';
+}
+
+function selectStage(i) {
+  const d = stageData[i];
+  const panel = document.getElementById('detail-panel');
+  document.getElementById('detail-icon').textContent = d.icon;
+  document.getElementById('detail-title').textContent = d.title;
+  document.getElementById('detail-subtitle').textContent = d.subtitle;
+  document.getElementById('detail-body').innerHTML = d.body;
+  const tagsEl = document.getElementById('detail-tags');
+  tagsEl.innerHTML = d.tags.map(t => `<span class="detail-tag ${t.cls}">${t.label}</span>`).join('');
+  panel.className = 'detail-panel active';
+  state.currentStage = i;
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+async function animatePacket(fromPct, toPct, color, ms) {
+  const rail = document.querySelector('.packet-rail');
+  const railRect = rail.getBoundingClientRect();
+  const pipeRect = document.getElementById('pipeline').getBoundingClientRect();
+  const offset = pipeRect.left - railRect.left;
+
+  const packet = document.getElementById('packet');
+  packet.style.display = 'block';
+  packet.className = 'packet ' + color;
+
+  const startX = railRect.width * fromPct / 100;
+  const endX = railRect.width * toPct / 100;
+
+  const startTime = performance.now();
+  return new Promise(resolve => {
+    function frame(now) {
+      const elapsed = now - startTime;
+      const progress = Math.min(elapsed / ms, 1);
+      const eased = progress < 0.5 ? 2*progress*progress : -1+(4-2*progress)*progress;
+      const x = startX + (endX - startX) * eased;
+      packet.style.left = x + 'px';
+      if (progress < 1) requestAnimationFrame(frame);
+      else resolve();
+    }
+    requestAnimationFrame(frame);
+  });
+}
+
+async function runSimulation() {
+  if (state.running) return;
+  state.running = true;
+  const btn = document.getElementById('run-btn');
+  btn.disabled = true;
+  btn.classList.add('running');
+  btn.querySelector('.dot').style.animation = 'blink 0.5s ease infinite';
+
+  resetStages();
+  addLog('--- new request ---', 'info');
+
+  const steering = document.getElementById('sel-steering').value;
+  const policyAction = document.getElementById('sel-policy').value;
+  const stageCount = 7;
+  const stagePct = 100 / stageCount;
+
+  let blocked = false;
+  let blockStage = -1;
+  let packetColor = '';
+
+  const stageDelay = 520;
+
+  // Stage 0: User device
+  setStageStyle(0, 'active');
+  setStageStatus(0, 'sending', 'inspecting');
+  selectStage(0);
+  await animatePacket(0, stagePct * 0.5, '', 300);
+  addLog('user device initiated HTTPS request', 'ok');
+  await sleep(stageDelay);
+  setStageStyle(0, 'passed-stage');
+  setStageStatus(0, 'sent', 'ok');
+
+  // Stage 1: Steering
+  setStageStyle(1, 'active');
+  setStageStatus(1, 'steering', 'inspecting');
+  selectStage(1);
+  await animatePacket(stagePct * 0.5, stagePct * 1.5, '', 300);
+  const steeringLabel = {client:'client agent', pac:'PAC file', ipsec:'IPSec/GRE tunnel'}[steering];
+  addLog(`traffic intercepted via ${steeringLabel} → NewEdge PoP`, 'ok');
+  await sleep(stageDelay);
+  setStageStyle(1, 'passed-stage');
+  setStageStatus(1, 'forwarded', 'ok');
+
+  // Stage 2: SSL
+  setStageStyle(2, 'active');
+  setStageStatus(2, 'decrypting', 'inspecting');
+  selectStage(2);
+  await animatePacket(stagePct * 1.5, stagePct * 2.5, '', 300);
+  if (state.ssl) {
+    addLog('TLS terminated — Netskope cert presented to client', 'ok');
+    addLog('plaintext available for inspection', 'ok');
+  } else {
+    addLog('SSL inspection disabled — encrypted passthrough', 'warn');
+    addLog('DLP and threat detection unavailable for this traffic', 'warn');
+  }
+  await sleep(stageDelay);
+  setStageStyle(2, state.ssl ? 'passed-stage' : 'warned-stage');
+  setStageStatus(2, state.ssl ? 'decrypted' : 'bypassed', state.ssl ? 'ok' : 'warn');
+
+  // Stage 3: Single-pass
+  setStageStyle(3, 'active');
+  setStageStatus(3, 'inspecting', 'inspecting');
+  selectStage(3);
+  await animatePacket(stagePct * 2.5, stagePct * 3.5, '', 300);
+  addLog('URL categorization: complete', 'ok');
+  addLog('app detection + CCI scoring: complete', 'ok');
+  if (state.ssl && state.dlp) {
+    if (state.dlpmatch) {
+      addLog('DLP scan: MATCH — sensitive data pattern detected', 'blocked');
+    } else {
+      addLog('DLP scan: no match', 'ok');
+    }
+  } else if (!state.ssl) {
+    addLog('DLP scan: skipped (no SSL inspection)', 'warn');
+  } else {
+    addLog('DLP scan: disabled', 'warn');
+  }
+  if (state.threat) {
+    addLog('threat detection: MALWARE SIGNATURE MATCH', 'blocked');
+  } else {
+    addLog('threat detection: clean', 'ok');
+  }
+  await sleep(stageDelay);
+  const inspectBad = (state.dlpmatch && state.ssl && state.dlp) || state.threat;
+  setStageStyle(3, inspectBad ? 'warned-stage' : 'passed-stage');
+  setStageStatus(3, inspectBad ? 'flags found' : 'clean', inspectBad ? 'warn' : 'ok');
+
+  // Stage 4: Policy engine
+  setStageStyle(4, 'active');
+  setStageStatus(4, 'evaluating', 'inspecting');
+  selectStage(4);
+  await animatePacket(stagePct * 3.5, stagePct * 4.5, '', 300);
+
+  let effectiveAction = policyAction;
+  if (state.threat) effectiveAction = 'block';
+  else if (state.dlpmatch && state.ssl && state.dlp && policyAction === 'allow') effectiveAction = 'alert';
+
+  addLog(`policy evaluation: identity + device + app + content`, 'info');
+  addLog(`policy decision: ${effectiveAction.toUpperCase()}`, effectiveAction === 'allow' || effectiveAction === 'alert' ? 'ok' : effectiveAction === 'block' ? 'blocked' : 'warn');
+  await sleep(stageDelay);
+
+  if (effectiveAction === 'block') {
+    blocked = true; blockStage = 4;
+    setStageStyle(4, 'blocked-stage');
+    setStageStatus(4, 'BLOCKED', 'blocked');
+    packetColor = 'blocked';
+  } else {
+    setStageStyle(4, 'passed-stage');
+    setStageStatus(4, effectiveAction, effectiveAction === 'allow' ? 'ok' : 'warn');
+    packetColor = effectiveAction === 'allow' ? 'allowed' : 'warned';
+  }
+
+  if (blocked) {
+    await animatePacket(stagePct * 4.5, stagePct * 4.5, 'blocked', 100);
+    // show block page
+    addLog('block page served to user', 'blocked');
+    addLog('event logged to SkopeIT', 'info');
+    showOutcome('block', '🚫', 'BLOCKED', `Policy action: block — ${state.threat ? 'threat detected' : 'DLP match'}`);
+    finalizeSimulation(btn);
+    return;
+  }
+
+  // Stage 5: Re-encrypt
+  setStageStyle(5, 'active');
+  setStageStatus(5, 're-encrypting', 'inspecting');
+  selectStage(5);
+  await animatePacket(stagePct * 4.5, stagePct * 5.5, packetColor, 300);
+  if (state.ssl) {
+    addLog('traffic re-encrypted with destination cert', 'ok');
+  } else {
+    addLog('re-encryption: skipped (passthrough)', 'warn');
+  }
+  await sleep(stageDelay);
+  setStageStyle(5, 'passed-stage');
+  setStageStatus(5, state.ssl ? 'encrypted' : 'skipped', 'ok');
+
+  // Stage 6: Destination
+  setStageStyle(6, 'active');
+  setStageStatus(6, 'forwarding', 'inspecting');
+  selectStage(6);
+  await animatePacket(stagePct * 5.5, 99, packetColor, 300);
+  addLog('request forwarded to destination', 'ok');
+  addLog('full event logged to SkopeIT telemetry', 'info');
+  await sleep(stageDelay);
+  setStageStyle(6, 'passed-stage');
+  setStageStatus(6, 'delivered', 'ok');
+
+  const outcomeMap = {
+    allow:  ['allow',  '✅', 'ALLOWED',    'request completed normally'],
+    alert:  ['allow',  '🔔', 'ALERT',      'allowed + security alert raised'],
+    coach:  ['coach',  '💬', 'COACHED',    'user shown warning, proceeded'],
+    quarantine: ['warn','📦','QUARANTINED','file held for admin review'],
+  };
+  const [cls, icon, val, desc] = outcomeMap[effectiveAction] || outcomeMap.allow;
+  showOutcome(cls, icon, val, `Policy action: ${effectiveAction} — ${desc}`);
+
+  finalizeSimulation(btn);
+}
+
+function showOutcome(cls, icon, val, desc) {
+  const el = document.getElementById('outcome');
+  el.style.display = 'flex';
+  el.className = 'outcome ' + cls;
+  document.getElementById('outcome-icon').textContent = icon;
+  document.getElementById('outcome-value').textContent = val;
+  document.getElementById('outcome-desc').textContent = desc;
+}
+
+function finalizeSimulation(btn) {
+  state.running = false;
+  btn.disabled = false;
+  btn.classList.remove('running');
+  setTimeout(() => {
+    document.getElementById('packet').style.display = 'none';
+  }, 1200);
+}
+</script>
+</body>
+</html>
