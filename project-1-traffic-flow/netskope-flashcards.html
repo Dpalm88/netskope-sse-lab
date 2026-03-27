@@ -599,8 +599,6 @@ function showCard() {
   const catHtml = `<span class="card-cat" style="background:${col.bg};color:${col.color};border:1px solid ${col.border};padding:3px 10px;border-radius:10px;font-size:10px;font-family:'JetBrains Mono',monospace;letter-spacing:0.1em;text-transform:uppercase">${c.cat}</span>`;
   const diffColor = c.diff === 'foundational' ? 'var(--green)' : c.diff === 'intermediate' ? 'var(--amber)' : 'var(--red)';
 
-  document.getElementById('card-cat-f').outerHTML; // skip, set below
-  document.getElementById('card-cat-b').outerHTML;
   document.querySelector('.card-face.front .card-meta').innerHTML = catHtml + `<span style="font-size:10px;font-family:'JetBrains Mono',monospace;color:${diffColor}">${c.diff}</span>`;
   document.querySelector('.card-face.back .card-meta').innerHTML = catHtml + `<span style="font-size:11px;font-family:'JetBrains Mono',monospace;color:var(--muted)">answer</span>`;
 
